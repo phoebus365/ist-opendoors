@@ -14,7 +14,6 @@ create table if not exists opendoors_entries (
   subject     text not null,
   grade       text,
   room        text,
-  focus       text,                      -- reserved
   strategies  jsonb not null default '[]'::jsonb,
   note        text,                      -- what's happening in this particular class
   attachment  text,                      -- storage path, nullable
@@ -117,7 +116,8 @@ create policy od_files_delete on storage.objects
 
 -- ============================================================ REPORTING VIEW
 
-create or replace view opendoors_board as
+drop view if exists opendoors_board;
+create view opendoors_board as
 select
   e.*,
   coalesce(v.n, 0) as visitor_count
