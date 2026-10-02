@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, notify } from "./supabase";
+import { PREVIEW } from "./preview";
 import {
   WINDOW_LABEL, DAY_NAMES, SHORT_DAYS, WEEKS,
   SUBJECTS_ES, SUBJECTS_SEC, GRADES_ES, GRADES_SEC,
@@ -135,6 +136,14 @@ export default function App() {
 
   const shell = (body) => (
     <div style={{ fontFamily: FONT, background: T.page, minHeight: "100vh", paddingBottom: 70 }}>
+      {PREVIEW && (
+        <div style={{
+          background: "#1a1a1a", color: "#fff", fontSize: 12, textAlign: "center",
+          padding: "7px 14px", letterSpacing: ".02em"
+        }}>
+          Preview — sample data, nothing is saved. Reload to start over.
+        </div>
+      )}
       {err && <Banner tone="bad" onClose={() => setErr(null)}>{err}</Banner>}
       {flash && <Banner tone="good" onClose={() => setFlash(null)}>{flash}</Banner>}
       <Header
@@ -367,7 +376,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
         division, date_str, period_key,
         host_email: myEmail, host_name: myName,
         subject: s.subject, grade: s.grade || GRADES[0],
-        room: s.room.trim(), focus: null,
+        room: s.room.trim(),
         strategies: s.focus, note: s.note.trim() || null,
         attachment: null
       };
