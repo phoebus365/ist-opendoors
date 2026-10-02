@@ -5,7 +5,7 @@ import {
   WINDOW_LABEL, DAY_NAMES, SHORT_DAYS, WEEKS,
   SUBJECTS_ES, SUBJECTS_SEC, GRADES_ES, GRADES_SEC,
   FOCUS_PEDAGOGY, FOCUS_GENERAL, ALL_FOCUS, CANCEL_REASONS,
-  STANDARDS, ALL_STRANDS,
+  OBSERVABLE_STANDARDS,
   T, FONT, colorFor, fmtDate, fmtLong, isToday, locate,
   periodsFor, periodLabel
 } from "./config";
@@ -752,7 +752,7 @@ function StandardsPicker({ value, onChange }) {
   const toggle = (s) =>
     onChange(value.includes(s) ? value.filter(x => x !== s) : [...value, s]);
 
-  const current = STANDARDS.find(s => s.code === tab);
+  const current = OBSERVABLE_STANDARDS.find(s => s.code === tab);
   const countIn = (code) => value.filter(v => v[0] === code).length;
 
   return (
@@ -785,7 +785,7 @@ function StandardsPicker({ value, onChange }) {
           <div style={{
             display: "flex", gap: 4, padding: "9px 11px 0", flexWrap: "wrap"
           }}>
-            {STANDARDS.map(s => {
+            {OBSERVABLE_STANDARDS.map(s => {
               const on = s.code === tab;
               const n = countIn(s.code);
               return (
@@ -986,7 +986,7 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail,
             </select>
             <select value={stdF} onChange={e => setStdF(e.target.value)} style={{ ...sel(!!stdF), flex: "0 1 240px" }}>
               <option value="">Any standard</option>
-              {STANDARDS.map(st => (
+              {OBSERVABLE_STANDARDS.map(st => (
                 <optgroup key={st.code} label={`${st.code} · ${st.title}`}>
                   <option value={st.code}>{`All of ${st.code}`}</option>
                   {st.strands.map(x => <option key={x} value={x}>{x}</option>)}

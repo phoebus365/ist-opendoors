@@ -124,7 +124,10 @@ export const STANDARDS = [
     "E4 Action beyond the classroom",
     "E5 Celebrating growth meaningfully"
   ]},
-  { code: "F", title: "Professional Responsibilities", strands: [
+  /* Not offered in Open Doors: these describe how you work across a
+     year, not what a colleague can see in one 40-minute lesson.
+     Flip to observable: true to put it back in the pickers. */
+  { code: "F", title: "Professional Responsibilities", observable: false, strands: [
     "F1 Integrity and advocacy for IST's mission",
     "F2 Collaboration",
     "F3 Communication",
@@ -141,7 +144,10 @@ export const STANDARDS = [
   ]}
 ];
 
-export const ALL_STRANDS = STANDARDS.flatMap(s => s.strands);
+/* What the pickers and filters actually offer. */
+export const OBSERVABLE_STANDARDS = STANDARDS.filter(s => s.observable !== false);
+
+export const ALL_STRANDS = OBSERVABLE_STANDARDS.flatMap(s => s.strands);
 
 /* "C3 Curiosity…" → the standard it belongs to */
 export function standardOf(strand) {
