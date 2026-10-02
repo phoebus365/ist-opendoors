@@ -82,6 +82,72 @@ export const FOCUS_GENERAL = [
 
 export const ALL_FOCUS = [...FOCUS_PEDAGOGY, ...FOCUS_GENERAL];
 
+/* ───────────────────────────────────────────────────────────────
+   IST Teaching Standards Framework, v2 (strands refined after the
+   September PD). Entirely separate from the focus list above — a
+   teacher may use either, both, or neither.
+   ─────────────────────────────────────────────────────────────── */
+
+export const STANDARDS = [
+  { code: "A", title: "Learning Environment", strands: [
+    "A1 Social tone, safety and wellbeing",
+    "A2 Relationships and routines",
+    "A3 Structures for agency, voice and ownership",
+    "A4 Learning made visible",
+    "A5 Arrangement, materials and readiness"
+  ]},
+  { code: "B", title: "Planning for High-Quality Learning", strands: [
+    "B1 Coherence, purpose and conceptual progression",
+    "B2 HQL framework and IB Programme integration",
+    "B3 Inquiry/Creative Process in unit design",
+    "B4 Differentiation by design",
+    "B5 Alignment: goals, learning and assessment"
+  ]},
+  { code: "C", title: "Approaches to Teaching", strands: [
+    "C1 Inquiry/Creative Process and student independence",
+    "C2 Instructional toolbox and responsive adaptation",
+    "C3 Curiosity, resilience and love of learning",
+    "C4 High expectations for thinking and ethical reasoning",
+    "C5 Refining teaching through evidence and dialogue"
+  ]},
+  { code: "D", title: "Assessment and Feedback", strands: [
+    "D1 Formative and summative assessment practice",
+    "D2 Moderation and shared judgment",
+    "D3 Feedback: specific, constructive and actionable",
+    "D4 Reporting and communicating learning",
+    "D5 Task design for voice, ownership and authenticity"
+  ]},
+  { code: "E", title: "Learner Profile in Practice", strands: [
+    "E1 Modeled by the teacher",
+    "E2 Embedded in learning",
+    "E3 International mindedness",
+    "E4 Action beyond the classroom",
+    "E5 Celebrating growth meaningfully"
+  ]},
+  { code: "F", title: "Professional Responsibilities", strands: [
+    "F1 Integrity and advocacy for IST's mission",
+    "F2 Collaboration",
+    "F3 Communication",
+    "F4 Work habits",
+    "F5 Adaptability and resilience",
+    "F6 Professional learning and growth"
+  ]},
+  { code: "G", title: "AI and Digital Literacy", strands: [
+    "G1 Purposeful use of digital tools and AI",
+    "G2 Digital citizenship: responsible use and privacy",
+    "G3 Students use technology critically and creatively",
+    "G4 AI literacy",
+    "G5 Academic integrity"
+  ]}
+];
+
+export const ALL_STRANDS = STANDARDS.flatMap(s => s.strands);
+
+/* "C3 Curiosity…" → the standard it belongs to */
+export function standardOf(strand) {
+  return STANDARDS.find(s => s.code === strand[0]) || null;
+}
+
 export const CANCEL_REASONS = [
   "Schedule conflict came up",
   "Asked to cover another class",

@@ -1,6 +1,9 @@
 -- Open Doors — schema
 -- Project: ist-opendoors (unvrlyfqxdlevokxqstp), ap-northeast-1
 -- Already run 2026-10-02. Safe to re-run.
+-- Existing database? add the standards column:
+--   alter table opendoors_entries
+--     add column if not exists standards jsonb not null default '[]'::jsonb;
 
 -- ============================================================ TABLES
 
@@ -14,7 +17,8 @@ create table if not exists opendoors_entries (
   subject     text not null,
   grade       text,
   room        text,
-  strategies  jsonb not null default '[]'::jsonb,
+  strategies  jsonb not null default '[]'::jsonb,   -- focus list
+  standards   jsonb not null default '[]'::jsonb,   -- IST Teaching Standards strands
   note        text,                      -- what's happening in this particular class
   attachment  text,                      -- storage path, nullable
   created_at  timestamptz not null default now()

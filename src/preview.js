@@ -35,7 +35,7 @@ function entry(o) {
   return {
     id: uid(),
     created_at: new Date().toISOString(),
-    grade: "", room: "", strategies: [], note: null, attachment: null,
+    grade: "", room: "", strategies: [], standards: [], note: null, attachment: null,
     ...o
   };
 }
@@ -46,6 +46,8 @@ const ENTRIES = [
     host_email: "k.haines@istianjin.org.cn", host_name: "Kit Haines",
     subject: "History", grade: "Grade 10", room: "S204",
     strategies: ["Discussion (whole class / pair-share)", "Questioning Techniques"],
+    standards: ["C4 High expectations for thinking and ethical reasoning",
+                "A3 Structures for agency, voice and ownership"],
     note: "Sources lesson — students argue over two accounts of the same event. The back half of the lesson is all them."
   }),
   entry({
@@ -60,6 +62,7 @@ const ENTRIES = [
     host_email: "preview@istianjin.org.cn", host_name: "Joe Schaaf",
     subject: "English Language and Literature", grade: "Grade 11", room: "S301",
     strategies: ["Modeling", "Feedback / Conferencing"],
+    standards: ["D3 Feedback: specific, constructive and actionable"],
     note: "Paper 1 practice. I model an opening, then confer while they draft."
   }),
   entry({
@@ -67,6 +70,8 @@ const ENTRIES = [
     host_email: "h.zhai@istianjin.org.cn", host_name: "Hao Zhai",
     subject: "Design", grade: "Grade 9", room: "D102",
     strategies: ["Student Agency / Choice", "Use of Technology"],
+    standards: ["G1 Purposeful use of digital tools and AI",
+                "G3 Students use technology critically and creatively"],
     note: "Prototyping day — noisy, and that's the point."
   }),
   entry({
@@ -88,6 +93,8 @@ const ENTRIES = [
     host_email: "m.okafor@istianjin.org.cn", host_name: "Michael Okafor",
     subject: "UOI (Unit of Inquiry)", grade: "Grade 4", room: "E14",
     strategies: ["Inquiry-Based Learning", "Student Collaboration / Group Work"],
+    standards: ["B3 Inquiry/Creative Process in unit design",
+                "C1 Inquiry/Creative Process and student independence"],
     note: "Provocation for the new unit. Lots of questions on chart paper by the end."
   }),
   entry({

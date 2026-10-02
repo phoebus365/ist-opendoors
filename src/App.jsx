@@ -5,6 +5,7 @@ import {
   WINDOW_LABEL, DAY_NAMES, SHORT_DAYS, WEEKS,
   SUBJECTS_ES, SUBJECTS_SEC, GRADES_ES, GRADES_SEC,
   FOCUS_PEDAGOGY, FOCUS_GENERAL, ALL_FOCUS, CANCEL_REASONS,
+  STANDARDS, ALL_STRANDS,
   T, FONT, colorFor, fmtDate, fmtLong, isToday, locate,
   periodsFor, periodLabel
 } from "./config";
@@ -345,7 +346,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
 
 /* ═══════════════════════════════════════════════ open flow */
 
-const BLANK_SLOT = { subject: "", grade: "", room: "", focus: [], note: "" };
+const BLANK_SLOT = { subject: "", grade: "", room: "", focus: [], standards: [], note: "" };
 
 function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName, setErr, say, setMode }) {
   const [picked, setPicked] = useState({});   // "date|periodKey" -> slot data
@@ -388,7 +389,8 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
         host_email: myEmail, host_name: myName,
         subject: s.subject, grade: s.grade || GRADES[0],
         room: s.room.trim(),
-        strategies: s.focus, note: s.note.trim() || null,
+        strategies: s.focus, standards: s.standards,
+        note: s.note.trim() || null,
         attachment: null
       };
     });
@@ -482,6 +484,19 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
               <FocusPicker
                 value={s.focus}
                 onChange={f => setSlot(k, { focus: f })}
+              />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>
+                Standards you're working on
+                <span style={{ color: T.muted, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                  {"  "}(optional — IST Teaching Standards)
+                </span>
+              </label>
+              <StandardsPicker
+                value={s.standards}
+                onChange={v => setSlot(k, { standards: v })}
               />
             </div>
 
@@ -729,6 +744,94 @@ function FocusPicker({ value, onChange }) {
   );
 }
 
+/* The Teaching Standards strands. Deliberately a second, separate
+   picker — a teacher may fill in one, both, or neither. */
+function StandardsPicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState("A");
+  const toggle = (s) =>
+    onChange(value.includes(s) ? value.filter(x => x !== s) : [...value, s]);
+
+  const current = STANDARDS.find(s => s.code === tab);
+  const countIn = (code) => value.filter(v => v[0] === code).length;
+
+  return (
+    <div style={{ border: `1.5px solid ${T.line}`, borderRadius: 5, background: "#fcfbfa" }}>
+      <div style={{ padding: "9px 11px", display: "flex", flexWrap: "wrap", gap: 5, alignItems: "center" }}>
+        {value.length === 0 && (
+          <span style={{ fontSize: 13, color: T.muted }}>Nothing selected yet</span>
+        )}
+        {value.map(s => (
+          <span key={s} style={{
+            background: "#eef2f8", color: "#2c5985", border: "1px solid #ccdaeb",
+            borderRadius: 4, fontSize: 11.5, fontWeight: 600, padding: "2px 8px",
+            display: "inline-flex", alignItems: "center", gap: 6
+          }}>
+            {s}
+            <button onClick={() => toggle(s)} style={{
+              background: "none", border: "none", color: "#2c5985", cursor: "pointer",
+              fontSize: 11, padding: 0, lineHeight: 1
+            }}>✕</button>
+          </span>
+        ))}
+        <button onClick={() => setOpen(o => !o)} style={{
+          marginLeft: "auto", background: "none", border: "none", color: "#2c5985",
+          fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline"
+        }}>{open ? "done" : "choose"}</button>
+      </div>
+
+      {open && (
+        <div style={{ borderTop: `1px solid ${T.line}` }}>
+          <div style={{
+            display: "flex", gap: 4, padding: "9px 11px 0", flexWrap: "wrap"
+          }}>
+            {STANDARDS.map(s => {
+              const on = s.code === tab;
+              const n = countIn(s.code);
+              return (
+                <button key={s.code} onClick={() => setTab(s.code)} title={s.title} style={{
+                  border: `1.5px solid ${on ? "#2c5985" : T.line}`,
+                  background: on ? "#2c5985" : "#fff",
+                  color: on ? "#fff" : T.text2,
+                  borderRadius: 5, width: 34, height: 30, cursor: "pointer",
+                  fontFamily: FONT, fontSize: 13, fontWeight: 700, position: "relative"
+                }}>
+                  {s.code}
+                  {n > 0 && (
+                    <span style={{
+                      position: "absolute", top: -5, right: -5, background: "#2c5985",
+                      color: "#fff", borderRadius: 999, fontSize: 9, fontWeight: 700,
+                      minWidth: 15, height: 15, lineHeight: "15px",
+                      border: "2px solid #fcfbfa"
+                    }}>{n}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ padding: "10px 12px 12px", maxHeight: 230, overflowY: "auto" }}>
+            <div style={{
+              fontSize: 9, fontWeight: 700, color: "#2c5985", letterSpacing: ".1em",
+              textTransform: "uppercase", marginBottom: 6
+            }}>{current.code} · {current.title}</div>
+            {current.strands.map(s => (
+              <label key={s} style={{
+                display: "flex", alignItems: "flex-start", gap: 9,
+                padding: "4px 0", cursor: "pointer"
+              }}>
+                <input type="checkbox" checked={value.includes(s)} onChange={() => toggle(s)}
+                  style={{ accentColor: "#2c5985", width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+                <span style={{ fontSize: 13, color: T.text, lineHeight: 1.4 }}>{s}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FocusGroup({ title, items, value, toggle, divider }) {
   return (
     <>
@@ -758,6 +861,7 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail,
   const [subjectF, setSubjectF] = useState("");
   const [gradeF, setGradeF] = useState("");
   const [focusF, setFocusF] = useState("");
+  const [stdF, setStdF] = useState("");
   const [listView, setListView] = useState(false);
   const [detail, setDetail] = useState(null);
   const [cancelling, setCancelling] = useState(null);
@@ -765,7 +869,7 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail,
   const PERIODS = periodsFor(division);
   const SUBJECTS = division === "Elementary" ? SUBJECTS_ES : SUBJECTS_SEC;
   const GRADES = division === "Elementary" ? GRADES_ES : GRADES_SEC;
-  const filtering = q.trim() || subjectF || gradeF || focusF;
+  const filtering = q.trim() || subjectF || gradeF || focusF || stdF;
 
   useEffect(() => { if (filtering) setListView(true); }, [filtering]);
   useEffect(() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); }, [division]);
@@ -778,11 +882,15 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail,
       e.subject.toLowerCase().includes(s) ||
       e.host_name.toLowerCase().includes(s) ||
       (e.note || "").toLowerCase().includes(s) ||
-      (e.strategies || []).some(x => x.toLowerCase().includes(s));
+      (e.strategies || []).some(x => x.toLowerCase().includes(s)) ||
+      (e.standards || []).some(x => x.toLowerCase().includes(s));
     return textOk
       && (!subjectF || e.subject === subjectF)
       && (!gradeF || e.grade === gradeF)
-      && (!focusF || (e.strategies || []).includes(focusF));
+      && (!focusF || (e.strategies || []).includes(focusF))
+      && (!stdF || (stdF.length === 1
+            ? (e.standards || []).some(x => x[0] === stdF)
+            : (e.standards || []).includes(stdF)));
   }
 
   const inDivision = entries.filter(e => e.division === division);
@@ -876,8 +984,17 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail,
               <option value="">Anything to observe</option>
               {ALL_FOCUS.map(s => <option key={s}>{s}</option>)}
             </select>
+            <select value={stdF} onChange={e => setStdF(e.target.value)} style={{ ...sel(!!stdF), flex: "0 1 240px" }}>
+              <option value="">Any standard</option>
+              {STANDARDS.map(st => (
+                <optgroup key={st.code} label={`${st.code} · ${st.title}`}>
+                  <option value={st.code}>{`All of ${st.code}`}</option>
+                  {st.strands.map(x => <option key={x} value={x}>{x}</option>)}
+                </optgroup>
+              ))}
+            </select>
             {filtering && (
-              <button onClick={() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); }}
+              <button onClick={() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); setStdF(""); }}
                 style={{ ...btnGhost, borderColor: T.redMid, color: T.red, padding: "8px 14px" }}>Clear</button>
             )}
           </div>
@@ -987,6 +1104,7 @@ function ClassChip({ e, dim, n, mine, onOpen }) {
   const ink  = taken ? T.fullInk  : T.openInk;
   const pill = taken ? T.full     : T.open;
   const tags = e.strategies || [];
+  const strands = e.standards || [];
 
   return (
     <div onClick={() => onOpen(e)} style={{
@@ -1016,6 +1134,17 @@ function ClassChip({ e, dim, n, mine, onOpen }) {
           {tags.length > 2 && (
             <span style={{ fontSize: 9.5, opacity: .75 }}>+{tags.length - 2}</span>
           )}
+        </span>
+      )}
+      {strands.length > 0 && (
+        <span style={{ display: "block", marginTop: 3 }}>
+          {strands.map(x => x.split(" ")[0]).map(code => (
+            <span key={code} style={{
+              display: "inline-block", background: "#eef2f8", color: "#2c5985",
+              border: "1px solid #ccdaeb", borderRadius: 3, fontSize: 9,
+              fontWeight: 700, padding: "0 4px", marginRight: 3
+            }}>{code}</span>
+          ))}
         </span>
       )}
     </div>
@@ -1095,6 +1224,7 @@ function DetailModal({ entry, onClose, visitors, myEmail, onJoin, onCancel }) {
   const mine = visitors.some(v => v.visitor_email === myEmail);
   const isHost = entry.host_email === myEmail;
   const tags = entry.strategies || [];
+  const strands = entry.standards || [];
   return (
     <Modal onClose={onClose} width={480}>
       <div style={{ height: 5, borderRadius: 3, background: colorFor(entry.host_name), marginBottom: 20 }} />
@@ -1131,6 +1261,22 @@ function DetailModal({ entry, onClose, visitors, myEmail, onJoin, onCancel }) {
             {tags.map(s => (
               <span key={s} style={{
                 background: T.redBg, color: T.red, border: `1px solid ${T.redMid}`,
+                borderRadius: 4, fontSize: 11.5, fontWeight: 600, padding: "3px 9px"
+              }}>{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {strands.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: T.muted, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 7 }}>
+            Standards in play
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {strands.map(s => (
+              <span key={s} style={{
+                background: "#eef2f8", color: "#2c5985", border: "1px solid #ccdaeb",
                 borderRadius: 4, fontSize: 11.5, fontWeight: 600, padding: "3px 9px"
               }}>{s}</span>
             ))}
