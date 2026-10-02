@@ -204,7 +204,7 @@ function SignIn({ onSignIn, err }) {
           </div>
           <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>{WINDOW_LABEL}</div>
           <div style={{ fontSize: 15, color: T.text2, lineHeight: 1.55, marginBottom: 30 }}>
-            Three weeks of open classrooms. Offer yours, and find colleagues' worth visiting.
+            Three weeks of open classrooms. Offer yours, and find colleagues to visit.
           </div>
           <button onClick={onSignIn} style={{ ...btn("big"), width: "100%" }}>
             Sign in with your school account
