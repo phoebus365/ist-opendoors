@@ -315,7 +315,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
   const first = myName.split(" ")[0] || myName;
   const Card = ({ title, body, cta, onClick, accent }) => (
     <button onClick={onClick} style={{
-      flex: "1 1 300px", textAlign: "left", background: "#fff",
+      width: "100%", textAlign: "left", background: "#fff",
       border: `1px solid ${T.line}`, borderTop: `4px solid ${accent}`,
       borderRadius: T.radius, padding: "28px 26px 24px", cursor: "pointer",
       fontFamily: FONT, transition: "box-shadow .15s, transform .15s"
@@ -343,7 +343,10 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
         Open Doors runs {WINDOW_LABEL}. What brings you here today?
       </div>
 
-      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 40 }}>
+      <div style={{
+        display: "flex", flexDirection: "column", gap: 14,
+        maxWidth: 660, marginBottom: 40
+      }}>
         <Card
           accent={T.red}
           title="Open my classroom"
@@ -352,7 +355,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
           onClick={() => setMode("open")}
         />
         <Card
-          accent={T.stripe}
+          accent={T.red}
           title="Visit a class"
           body="Browse what colleagues have offered, filter by subject or focus, and sign up to drop in."
           cta="Browse the board"
