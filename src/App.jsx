@@ -193,23 +193,43 @@ function SignIn({ onSignIn, err }) {
       display: "flex", alignItems: "center", justifyContent: "center", padding: 20
     }}>
       <div style={{
-        background: "#fff", borderRadius: T.radius, maxWidth: 430, width: "100%",
-        border: `1px solid ${T.line}`,
-        boxShadow: "0 16px 56px rgba(38,47,61,.12)", overflow: "hidden"
+        background: T.card, border: `1px solid ${T.line}`, borderRadius: T.radius,
+        boxShadow: T.shadow, maxWidth: 380, width: "100%",
+        overflow: "hidden", textAlign: "center"
       }}>
-        <div style={{ background: T.red, height: 10, borderBottom: `3px solid ${T.stripe}` }} />
-        <div style={{ padding: "38px 36px 36px" }}>
-          <div style={{ fontSize: 27, color: T.ink, marginBottom: 7, letterSpacing: "-.01em" }}>
-            Open <em style={{ color: T.red, fontStyle: "italic" }}>Doors</em>
-          </div>
-          <div style={{ fontSize: 13, color: T.muted, marginBottom: 20 }}>{WINDOW_LABEL}</div>
-          <div style={{ fontSize: 15, color: T.text2, lineHeight: 1.55, marginBottom: 30 }}>
-            Three weeks of open classrooms. Offer yours, and find colleagues to visit.
-          </div>
-          <button onClick={onSignIn} style={{ ...btn("big"), width: "100%" }}>
-            Sign in with your school account
-          </button>
-          {err && <div style={{ marginTop: 18, fontSize: 12.5, color: T.red }}>{err}</div>}
+        <div style={{ padding: "22px 0 6px" }}>
+          <img src="/ist-logo.png" alt="International School of Tianjin"
+            style={{ width: 88, height: "auto", display: "block", margin: "0 auto" }} />
+        </div>
+
+        <div style={{
+          background: T.red, color: "#fff", padding: "26px 24px 22px",
+          borderBottom: `4px solid ${T.stripe}`
+        }}>
+          <div style={{
+            fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", opacity: .85
+          }}>International School of Tianjin</div>
+          <h2 style={{ fontSize: 26, fontWeight: 800, marginTop: 4, color: "#fff" }}>
+            Open Doors
+          </h2>
+        </div>
+
+        <div style={{ padding: 24 }}>
+          <p style={{ color: T.text2, fontSize: 13, margin: "0 0 4px" }}>
+            Three weeks of open classrooms, {WINDOW_LABEL}.
+          </p>
+          <p style={{ color: T.text2, fontSize: 13, margin: "0 0 4px" }}>
+            Offer yours, and find colleagues to visit.
+          </p>
+          <p style={{ color: T.text2, fontSize: 13, margin: "0 0 18px" }}>
+            Sign in with your IST Microsoft account.
+          </p>
+          <button onClick={onSignIn} style={{
+            background: T.red, color: "#fff", border: "none", borderRadius: 10,
+            padding: "15px 26px", fontSize: 15.5, fontWeight: 700,
+            fontFamily: FONT, cursor: "pointer", width: "100%"
+          }}>Sign in with Microsoft</button>
+          {err && <div style={{ color: T.open, fontSize: 13, marginTop: 10 }}>{err}</div>}
         </div>
       </div>
     </div>
@@ -238,46 +258,51 @@ function Banner({ children, tone, onClose }) {
 }
 
 function Header({ myName, onSignOut, mode, setMode }) {
+  const tabs = [
+    ["open",  "Open my classroom"],
+    ["visit", "Visit a class"]
+  ];
   return (
     <header style={{
       position: "sticky", top: 0, zIndex: 20,
       background: "rgba(255,255,255,.94)", backdropFilter: "blur(8px)",
       borderTop: `10px solid ${T.red}`,
       borderBottom: `1px solid ${T.line}`,
-      boxShadow: `inset 0 3px 0 0 ${T.stripe}`,
-      padding: "16px 22px"
+      boxShadow: `inset 0 3px 0 0 ${T.stripe}`
     }}>
-      <div style={{
-        maxWidth: 1180, margin: "0 auto", display: "flex",
-        alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16
-      }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
-          <span
-            onClick={() => setMode(null)}
-            style={{
-              fontSize: 21, color: T.ink, cursor: "pointer",
-              fontWeight: 700, letterSpacing: "-.015em"
-            }}
-            title="Back to start"
-          >
-            Open <em style={{ color: T.red, fontStyle: "italic" }}>Doors</em>
-          </span>
-          <span style={{
-            fontSize: 12, color: T.text2, borderLeft: `1px solid ${T.line}`, paddingLeft: 14
-          }}>{WINDOW_LABEL}</span>
-          {mode && (
-            <button onClick={() => setMode(null)} style={{
-              background: "none", border: "none", color: T.red, fontSize: 12,
-              cursor: "pointer", fontFamily: FONT, fontWeight: 600, padding: 0
-            }}>← start over</button>
-          )}
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 12.5, color: T.ink, fontWeight: 600 }}>{myName}</div>
-          <button onClick={onSignOut} style={{
-            background: "none", border: "none", color: T.text2, fontSize: 11,
-            cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: FONT
-          }}>Sign out</button>
+      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "14px 22px 0" }}>
+        <div style={{
+          display: "flex", alignItems: "flex-start", gap: 14,
+          justifyContent: "space-between", flexWrap: "wrap"
+        }}>
+          <nav style={{ display: "flex", flexWrap: "wrap" }}>
+            {tabs.map(([key, label]) => {
+              const on = mode === key;
+              return (
+                <button key={key} onClick={() => setMode(key)} style={{
+                  border: "none", background: "none", padding: "10px 16px",
+                  fontSize: 14, fontWeight: 700, fontFamily: FONT,
+                  color: on ? T.red : T.ink, opacity: on ? 1 : .62,
+                  borderBottom: `3px solid ${on ? T.red : "transparent"}`,
+                  borderRadius: "8px 8px 0 0", cursor: "pointer"
+                }}>{label}</button>
+              );
+            })}
+          </nav>
+
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            paddingTop: 8, paddingBottom: 8
+          }}>
+            <img src="/ist-logo.png" alt="" style={{ width: 28, height: "auto" }} />
+            <span style={{ fontSize: 11, color: T.text2, whiteSpace: "nowrap" }}>
+              Signed in as {myName}
+            </span>
+            <button onClick={onSignOut} style={{
+              background: "none", border: "none", color: T.text2, fontSize: 11,
+              cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: FONT
+            }}>Log out</button>
+          </div>
         </div>
       </div>
     </header>
@@ -315,7 +340,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
         Hello, {first}.
       </div>
       <div style={{ fontSize: 15, color: T.text2, marginBottom: 34 }}>
-        What brings you here today?
+        Open Doors runs {WINDOW_LABEL}. What brings you here today?
       </div>
 
       <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 40 }}>
