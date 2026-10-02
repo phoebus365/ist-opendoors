@@ -95,26 +95,42 @@ export const CANCEL_REASONS = [
    Look
    ─────────────────────────────────────────────────────────────── */
 
+/* Same palette as the Cover Board (cover.commonpractices.org), so the
+   two tools read as one system. Token names here are kept as they were
+   so nothing else in the app had to change. */
+
 export const T = {
-  ink:    "#1a1a1a",
-  red:    "#a32a24",
-  redBg:  "#fdf2f1",
-  redMid: "#e0a9a5",
-  page:   "#f4f3f1",
-  card:   "#ffffff",
-  text:   "#1a1a1a",
-  text2:  "#55524e",
-  muted:  "#96918b",
-  line:   "#e3e0dc",
-  today:  "#fdf2f1"
+  ink:     "#2b2929",
+  red:     "#cd2129",   // --accent
+  redDark: "#a81a21",   // --accent hover
+  redBg:   "#fbe9e9",   // --accent-soft
+  redMid:  "#eccbc3",
+  stripe:  "#f89c26",   // the orange bar under the header
+  page:    "#f7f7f7",   // --paper
+  card:    "#ffffff",
+  text:    "#2b2929",   // --ink
+  text2:   "#5c6474",   // --ink-soft
+  muted:   "#8a90a0",
+  line:    "#e6e3dd",
+  lineStrong: "#d3cec5",
+  today:   "#fbe9e9",
+
+  /* class states, matching the Cover Board's slot colors */
+  open:    "#b0524a", openBg: "#f7ece9", openLine: "#eccbc3", openInk: "#6e241c",
+  full:    "#4a7c5c", fullBg: "#e9f2ea", fullLine: "#c9e0cd", fullInk: "#144e31",
+
+  radius:  12,
+  shadow:  "0 1px 2px rgba(38,47,61,.05), 0 6px 20px rgba(38,47,61,.05)"
 };
 
 export const FONT =
   "'Open Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 
+/* Per-teacher accents, drawn from the Cover Board's category colors
+   (sick / personal / PD / business / other / late) so nothing clashes. */
 const CHIP_COLORS = [
-  "#a32a24","#2471A3","#1E8449","#7D3C98","#A04000","#1A5276",
-  "#117A65","#6E2F8A","#922B21","#1F618D","#196F3D","#6C3483"
+  "#cd2129","#3a86c8","#4a7c5c","#7c6a9e","#b0524a","#1A5276",
+  "#117A65","#6E2F8A","#a81a21","#5c6474","#2f7a48","#8a5a00"
 ];
 
 export function colorFor(name) {

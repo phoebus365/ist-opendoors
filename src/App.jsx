@@ -52,7 +52,7 @@ function Modal({ children, onClose, width = 560 }) {
       zIndex: 100, padding: "40px 20px", overflowY: "auto"
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: "#fff", borderRadius: 8, padding: 30, width: "100%",
+        background: "#fff", borderRadius: T.radius, padding: 30, width: "100%",
         maxWidth: width, boxShadow: "0 16px 56px rgba(0,0,0,.22)",
         fontFamily: FONT, color: T.text
       }}>{children}</div>
@@ -192,10 +192,11 @@ function SignIn({ onSignIn, err }) {
       display: "flex", alignItems: "center", justifyContent: "center", padding: 20
     }}>
       <div style={{
-        background: "#fff", borderRadius: 10, maxWidth: 430, width: "100%",
-        boxShadow: "0 16px 56px rgba(0,0,0,.1)", overflow: "hidden"
+        background: "#fff", borderRadius: T.radius, maxWidth: 430, width: "100%",
+        border: `1px solid ${T.line}`,
+        boxShadow: "0 16px 56px rgba(38,47,61,.12)", overflow: "hidden"
       }}>
-        <div style={{ background: T.red, height: 7 }} />
+        <div style={{ background: T.red, height: 10, borderBottom: `3px solid ${T.stripe}` }} />
         <div style={{ padding: "38px 36px 36px" }}>
           <div style={{ fontSize: 27, color: T.ink, marginBottom: 7, letterSpacing: "-.01em" }}>
             Open <em style={{ color: T.red, fontStyle: "italic" }}>Doors</em>
@@ -237,7 +238,14 @@ function Banner({ children, tone, onClose }) {
 
 function Header({ myName, onSignOut, mode, setMode }) {
   return (
-    <header style={{ background: T.ink, padding: "19px 40px" }}>
+    <header style={{
+      position: "sticky", top: 0, zIndex: 20,
+      background: "rgba(255,255,255,.94)", backdropFilter: "blur(8px)",
+      borderTop: `10px solid ${T.red}`,
+      borderBottom: `1px solid ${T.line}`,
+      boxShadow: `inset 0 3px 0 0 ${T.stripe}`,
+      padding: "16px 22px"
+    }}>
       <div style={{
         maxWidth: 1180, margin: "0 auto", display: "flex",
         alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16
@@ -245,25 +253,28 @@ function Header({ myName, onSignOut, mode, setMode }) {
         <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
           <span
             onClick={() => setMode(null)}
-            style={{ fontSize: 21, color: "#fff", cursor: "pointer" }}
+            style={{
+              fontSize: 21, color: T.ink, cursor: "pointer",
+              fontWeight: 700, letterSpacing: "-.015em"
+            }}
             title="Back to start"
           >
-            Open <em style={{ color: "#d9736c", fontStyle: "italic" }}>Doors</em>
+            Open <em style={{ color: T.red, fontStyle: "italic" }}>Doors</em>
           </span>
           <span style={{
-            fontSize: 11, color: "#8a8580", borderLeft: "1px solid #3d3a37", paddingLeft: 14
+            fontSize: 12, color: T.text2, borderLeft: `1px solid ${T.line}`, paddingLeft: 14
           }}>{WINDOW_LABEL}</span>
           {mode && (
             <button onClick={() => setMode(null)} style={{
-              background: "none", border: "none", color: "#8a8580", fontSize: 11.5,
-              cursor: "pointer", fontFamily: FONT, textDecoration: "underline", padding: 0
+              background: "none", border: "none", color: T.red, fontSize: 12,
+              cursor: "pointer", fontFamily: FONT, fontWeight: 600, padding: 0
             }}>← start over</button>
           )}
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 12.5, color: "#ccc7c1" }}>{myName}</div>
+          <div style={{ fontSize: 12.5, color: T.ink, fontWeight: 600 }}>{myName}</div>
           <button onClick={onSignOut} style={{
-            background: "none", border: "none", color: "#75706b", fontSize: 11,
+            background: "none", border: "none", color: T.text2, fontSize: 11,
             cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: FONT
           }}>Sign out</button>
         </div>
@@ -280,7 +291,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
     <button onClick={onClick} style={{
       flex: "1 1 300px", textAlign: "left", background: "#fff",
       border: `1px solid ${T.line}`, borderTop: `4px solid ${accent}`,
-      borderRadius: 8, padding: "28px 26px 24px", cursor: "pointer",
+      borderRadius: T.radius, padding: "28px 26px 24px", cursor: "pointer",
       fontFamily: FONT, transition: "box-shadow .15s, transform .15s"
     }}
       onMouseEnter={e => {
@@ -315,7 +326,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
           onClick={() => setMode("open")}
         />
         <Card
-          accent="#2471A3"
+          accent="#3a86c8"
           title="Visit a class"
           body="Browse what colleagues have offered, filter by subject or focus, and sign up to drop in."
           cta="Browse the board"
@@ -424,7 +435,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
         return (
           <div key={k} style={{
             background: "#fff", border: `1px solid ${T.line}`,
-            borderLeft: `4px solid ${T.red}`, borderRadius: 7,
+            borderLeft: `4px solid ${T.red}`, borderRadius: T.radius,
             padding: "20px 22px", marginBottom: 16
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
@@ -573,7 +584,7 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn }) 
   return (
     <div style={{ marginBottom: 38 }}>
       <WeekHeading week={week} />
-      <div style={{ overflowX: "auto", borderRadius: 7, border: `1px solid ${T.line}`, background: "#fff" }}>
+      <div style={{ overflowX: "auto", borderRadius: T.radius, border: `1px solid ${T.line}`, background: "#fff" }}>
         <table style={{ borderCollapse: "collapse", width: "100%", minWidth: week.dates.length * 150 }}>
           <GridHead week={week} division={division} />
           <tbody>
@@ -846,7 +857,7 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail,
         <DivisionTabs division={division} onChange={setDivision} />
 
         <div style={{
-          background: "#fff", border: `1px solid ${T.line}`, borderRadius: 7,
+          background: "#fff", border: `1px solid ${T.line}`, borderRadius: T.radius,
           padding: "14px 16px", marginBottom: 26
         }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
@@ -930,7 +941,7 @@ function VisitGrid({ week, division, periods, entries, match, filtering, visitor
   return (
     <div style={{ marginBottom: 38 }}>
       <WeekHeading week={week} />
-      <div style={{ overflowX: "auto", borderRadius: 7, border: `1px solid ${T.line}`, background: "#fff" }}>
+      <div style={{ overflowX: "auto", borderRadius: T.radius, border: `1px solid ${T.line}`, background: "#fff" }}>
         <table style={{ borderCollapse: "collapse", width: "100%", minWidth: week.dates.length * 160 }}>
           <GridHead week={week} division={division} />
           <tbody>
@@ -967,34 +978,43 @@ function VisitGrid({ week, division, periods, entries, match, filtering, visitor
   );
 }
 
+/* Same reading as the Cover Board: clay means it still needs people,
+   green means someone's coming. */
 function ClassChip({ e, dim, n, mine, onOpen }) {
-  const c = colorFor(e.host_name);
+  const taken = n > 0 || mine;
+  const bg   = taken ? T.fullBg   : T.openBg;
+  const line = taken ? T.fullLine : T.openLine;
+  const ink  = taken ? T.fullInk  : T.openInk;
+  const pill = taken ? T.full     : T.open;
   const tags = e.strategies || [];
+
   return (
     <div onClick={() => onOpen(e)} style={{
-      background: c, color: "#fff", borderRadius: 4, padding: "6px 8px",
+      background: bg, color: ink, border: `1px solid ${line}`,
+      borderRadius: 9, padding: "7px 9px",
       marginBottom: 5, fontSize: 11.5, cursor: "pointer",
       opacity: dim ? 0.4 : 1, transition: "opacity .15s", lineHeight: 1.4
     }}>
       <strong style={{ display: "block", fontSize: 12.5 }}>{e.host_name}</strong>
-      <span style={{ opacity: .9, fontSize: 10.5 }}>{e.subject} · {e.grade}</span>
-      {e.room && <span style={{ opacity: .78, fontSize: 10.5, display: "block" }}>Room {e.room}</span>}
-      {(n > 0 || mine) && (
-        <span style={{
-          display: "inline-block", marginTop: 4, background: "rgba(255,255,255,.3)",
-          borderRadius: 3, fontSize: 9.5, padding: "1px 6px", fontWeight: 700
-        }}>{mine ? "you're going" : `${n} visiting`}</span>
-      )}
+      <span style={{ opacity: .85, fontSize: 10.5 }}>{e.subject} · {e.grade}</span>
+      {e.room && <span style={{ opacity: .7, fontSize: 10.5, display: "block" }}>Room {e.room}</span>}
+      <span style={{
+        display: "inline-block", marginTop: 4, background: pill, color: "#fff",
+        borderRadius: 999, fontSize: 9.5, padding: "1.5px 7px", fontWeight: 700
+      }}>
+        {mine ? "you're going" : n > 0 ? `${n} visiting` : "no one yet"}
+      </span>
       {tags.length > 0 && (
         <span style={{ display: "block", marginTop: 4 }}>
           {tags.slice(0, 2).map((t, i) => (
             <span key={i} style={{
-              display: "inline-block", background: "rgba(255,255,255,.2)",
-              borderRadius: 3, fontSize: 9.5, padding: "1px 5px", marginRight: 3, marginBottom: 2
+              display: "inline-block", background: "rgba(255,255,255,.65)",
+              border: `1px solid ${line}`,
+              borderRadius: 999, fontSize: 9.5, padding: "1px 6px", marginRight: 3, marginBottom: 2
             }}>{t}</span>
           ))}
           {tags.length > 2 && (
-            <span style={{ fontSize: 9.5, opacity: .8 }}>+{tags.length - 2}</span>
+            <span style={{ fontSize: 9.5, opacity: .75 }}>+{tags.length - 2}</span>
           )}
         </span>
       )}
@@ -1005,7 +1025,7 @@ function ClassChip({ e, dim, n, mine, onOpen }) {
 function VisitList({ hits, visitorsOf, myEmail, onOpen }) {
   if (hits.length === 0) return (
     <div style={{
-      background: "#fff", border: `1px solid ${T.line}`, borderRadius: 7,
+      background: "#fff", border: `1px solid ${T.line}`, borderRadius: T.radius,
       padding: "40px 24px", textAlign: "center", color: T.muted, fontSize: 14.5, marginBottom: 40
     }}>Nothing matches those filters yet.</div>
   );
