@@ -352,7 +352,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
           onClick={() => setMode("open")}
         />
         <Card
-          accent="#3a86c8"
+          accent={T.stripe}
           title="Visit a class"
           body="Browse what colleagues have offered, filter by subject or focus, and sign up to drop in."
           cta="Browse the board"
@@ -371,7 +371,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
 
 /* ═══════════════════════════════════════════════ open flow */
 
-const BLANK_SLOT = { subject: "", grade: "", room: "", focus: [], standards: [], note: "" };
+const BLANK_SLOT = { subject: "", grade: "", room: "", focus: [], standards: [], note: "", manualSubject: false };
 
 function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName, setErr, say, setMode }) {
   const [picked, setPicked] = useState({});   // "date|periodKey" -> slot data
@@ -481,10 +481,30 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
               <div style={{ flex: "2 1 220px" }}>
                 <label style={lbl}>Subject <span style={{ color: T.red }}>*</span></label>
-                <select value={s.subject} onChange={e => setSlot(k, { subject: e.target.value })} style={input}>
-                  <option value="">Select…</option>
-                  {SUBJECTS.map(x => <option key={x}>{x}</option>)}
-                </select>
+                {s.manualSubject ? (
+                  <input
+                    value={s.subject}
+                    onChange={e => setSlot(k, { subject: e.target.value })}
+                    placeholder="Type the class name"
+                    style={input}
+                    autoFocus
+                  />
+                ) : (
+                  <select value={s.subject} onChange={e => setSlot(k, { subject: e.target.value })} style={input}>
+                    <option value="">Select…</option>
+                    {SUBJECTS.map(x => <option key={x}>{x}</option>)}
+                  </select>
+                )}
+                <button
+                  onClick={() => setSlot(k, { manualSubject: !s.manualSubject, subject: "" })}
+                  style={{
+                    background: "none", border: "none", padding: "5px 0 0", cursor: "pointer",
+                    fontFamily: FONT, fontSize: 11.5, color: T.red, textDecoration: "underline"
+                  }}>
+                  {s.manualSubject
+                    ? "Back to the list"
+                    : "Don't see your class? Add it manually"}
+                </button>
               </div>
               <div style={{ flex: "1 1 130px" }}>
                 <label style={lbl}>Grade</label>
@@ -526,7 +546,12 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
             </div>
 
             <div>
-              <label style={lbl}>What's happening in this particular lesson?</label>
+              <label style={lbl}>
+                What's happening in this particular lesson?
+                <span style={{ color: T.muted, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                  {"  "}(optional)
+                </span>
+              </label>
               <textarea
                 value={s.note}
                 onChange={e => setSlot(k, { note: e.target.value })}
@@ -788,19 +813,19 @@ function StandardsPicker({ value, onChange }) {
         )}
         {value.map(s => (
           <span key={s} style={{
-            background: "#eef2f8", color: "#2c5985", border: "1px solid #ccdaeb",
+            background: T.amberBg, color: T.amber, border: `1px solid ${T.amberLine}`,
             borderRadius: 4, fontSize: 11.5, fontWeight: 600, padding: "2px 8px",
             display: "inline-flex", alignItems: "center", gap: 6
           }}>
             {s}
             <button onClick={() => toggle(s)} style={{
-              background: "none", border: "none", color: "#2c5985", cursor: "pointer",
+              background: "none", border: "none", color: T.amber, cursor: "pointer",
               fontSize: 11, padding: 0, lineHeight: 1
             }}>✕</button>
           </span>
         ))}
         <button onClick={() => setOpen(o => !o)} style={{
-          marginLeft: "auto", background: "none", border: "none", color: "#2c5985",
+          marginLeft: "auto", background: "none", border: "none", color: T.amber,
           fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline"
         }}>{open ? "done" : "choose"}</button>
       </div>
@@ -815,8 +840,8 @@ function StandardsPicker({ value, onChange }) {
               const n = countIn(s.code);
               return (
                 <button key={s.code} onClick={() => setTab(s.code)} title={s.title} style={{
-                  border: `1.5px solid ${on ? "#2c5985" : T.line}`,
-                  background: on ? "#2c5985" : "#fff",
+                  border: `1.5px solid ${on ? T.amber : T.line}`,
+                  background: on ? T.amber : "#fff",
                   color: on ? "#fff" : T.text2,
                   borderRadius: 5, width: 34, height: 30, cursor: "pointer",
                   fontFamily: FONT, fontSize: 13, fontWeight: 700, position: "relative"
@@ -824,7 +849,7 @@ function StandardsPicker({ value, onChange }) {
                   {s.code}
                   {n > 0 && (
                     <span style={{
-                      position: "absolute", top: -5, right: -5, background: "#2c5985",
+                      position: "absolute", top: -5, right: -5, background: T.amber,
                       color: "#fff", borderRadius: 999, fontSize: 9, fontWeight: 700,
                       minWidth: 15, height: 15, lineHeight: "15px",
                       border: "2px solid #fcfbfa"
@@ -837,7 +862,7 @@ function StandardsPicker({ value, onChange }) {
 
           <div style={{ padding: "10px 12px 12px", maxHeight: 230, overflowY: "auto" }}>
             <div style={{
-              fontSize: 9, fontWeight: 700, color: "#2c5985", letterSpacing: ".1em",
+              fontSize: 9, fontWeight: 700, color: T.amber, letterSpacing: ".1em",
               textTransform: "uppercase", marginBottom: 6
             }}>{current.code} · {current.title}</div>
             {current.strands.map(s => (
@@ -846,7 +871,7 @@ function StandardsPicker({ value, onChange }) {
                 padding: "4px 0", cursor: "pointer"
               }}>
                 <input type="checkbox" checked={value.includes(s)} onChange={() => toggle(s)}
-                  style={{ accentColor: "#2c5985", width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+                  style={{ accentColor: T.amber, width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
                 <span style={{ fontSize: 13, color: T.text, lineHeight: 1.4 }}>{s}</span>
               </label>
             ))}
@@ -1165,8 +1190,8 @@ function ClassChip({ e, dim, n, mine, onOpen }) {
         <span style={{ display: "block", marginTop: 3 }}>
           {strands.map(x => x.split(" ")[0]).map(code => (
             <span key={code} style={{
-              display: "inline-block", background: "#eef2f8", color: "#2c5985",
-              border: "1px solid #ccdaeb", borderRadius: 3, fontSize: 9,
+              display: "inline-block", background: T.amberBg, color: T.amber,
+              border: `1px solid ${T.amberLine}`, borderRadius: 3, fontSize: 9,
               fontWeight: 700, padding: "0 4px", marginRight: 3
             }}>{code}</span>
           ))}
@@ -1301,7 +1326,7 @@ function DetailModal({ entry, onClose, visitors, myEmail, onJoin, onCancel }) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
             {strands.map(s => (
               <span key={s} style={{
-                background: "#eef2f8", color: "#2c5985", border: "1px solid #ccdaeb",
+                background: T.amberBg, color: T.amber, border: `1px solid ${T.amberLine}`,
                 borderRadius: 4, fontSize: 11.5, fontWeight: 600, padding: "3px 9px"
               }}>{s}</span>
             ))}

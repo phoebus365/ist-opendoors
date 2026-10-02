@@ -187,6 +187,11 @@ export const T = {
   lineStrong: "#d3cec5",
   today:   "#fbe9e9",
 
+  /* school orange, for the standards picker and the visit side */
+  amber:     "#8a5a00",
+  amberBg:   "#faf0dc",
+  amberLine: "#f0dfb8",
+
   /* class states, matching the Cover Board's slot colors */
   open:    "#b0524a", openBg: "#f7ece9", openLine: "#eccbc3", openInk: "#6e241c",
   full:    "#4a7c5c", fullBg: "#e9f2ea", fullLine: "#c9e0cd", fullInk: "#144e31",
