@@ -7,7 +7,7 @@ import {
   FOCUS_PEDAGOGY, FOCUS_GENERAL, ALL_FOCUS, CANCEL_REASONS,
   OBSERVABLE_STANDARDS,
   T, FONT, colorFor, fmtDate, fmtLong, isToday, locate,
-  periodsFor, periodLabel
+  periodsFor, periodLabel, scheduledClassFor
 } from "./config";
 
 /* ═══════════════════════════════════════════════ shared bits */
@@ -388,10 +388,14 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
 
   function toggle(date, pk) {
     const k = `${date}|${pk}`;
+    const scheduled = division === "Secondary" ? scheduledClassFor(myName, date, pk) : null;
+    if (division === "Secondary" && !scheduled) return;
     setPicked(p => {
       const n = { ...p };
       if (n[k]) delete n[k];
-      else n[k] = { ...BLANK_SLOT, grade: GRADES[0] };
+      else n[k] = scheduled
+        ? { ...BLANK_SLOT, ...scheduled, manualSubject: true, scheduled: true }
+        : { ...BLANK_SLOT, grade: GRADES[0] };
       return n;
     });
   }
@@ -455,7 +459,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
         Tell us about {keys.length === 1 ? "this class" : `these ${keys.length} classes`}
       </h2>
       <p style={{ fontSize: 14, color: T.text2, margin: "0 0 28px", lineHeight: 1.55 }}>
-        Subject is required. Everything else helps colleagues decide whether to drop in.
+        Your timetable details are filled in automatically. Check them, then add any optional focus, standards or lesson note you'd like visitors to see.
       </p>
 
       {keys.sort().map(k => {
@@ -480,6 +484,16 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
                 cursor: "pointer", fontFamily: FONT, textDecoration: "underline"
               }}>remove</button>
             </div>
+
+            {s.scheduled && (
+              <div style={{
+                background: T.redBg, border: `1px solid ${T.redMid}`, borderRadius: 7,
+                padding: "10px 12px", marginBottom: 14, fontSize: 12.5, color: T.text2
+              }}>
+                <strong style={{ color: T.ink }}>From your timetable:</strong>{" "}
+                {s.subject}{s.grade ? ` · ${s.grade}` : ""}{s.room ? ` · Room ${s.room}` : ""}
+              </div>
+            )}
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
               <div style={{ flex: "2 1 220px" }}>
@@ -591,7 +605,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
         Which classes are you opening?
       </h2>
       <p style={{ fontSize: 14, color: T.text2, margin: "0 0 22px", lineHeight: 1.55 }}>
-        Click every slot you're happy to host. Pick as many as you like — you'll describe them all on the next screen.
+        Your scheduled classes are shown below. Click the classes you're happy to open — free periods stay out of the way.
       </p>
 
       <DivisionTabs division={division} onChange={switchDivision} />
@@ -601,6 +615,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
           key={i} week={w} division={division} periods={PERIODS}
           picked={picked} toggle={toggle}
           counts={minePerSlot} mineOwn={mineOwn}
+          myName={myName}
         />
       ))}
 
@@ -648,7 +663,7 @@ function DivisionTabs({ division, onChange }) {
   );
 }
 
-function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn }) {
+function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, myName }) {
   return (
     <div style={{ marginBottom: 38 }}>
       <WeekHeading week={week} />
@@ -664,30 +679,43 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn }) 
                   const on = !!picked[k];
                   const already = mineOwn.has(k);
                   const n = counts[k] || 0;
+                  const scheduled = division === "Secondary" ? scheduledClassFor(myName, d, p.key) : null;
+                  const available = division !== "Secondary" || !!scheduled;
                   return (
                     <td key={d}
-                      onClick={() => !already && toggle(d, p.key)}
-                      title={already ? "You've already opened this slot" : ""}
+                      onClick={() => available && !already && toggle(d, p.key)}
+                      title={already ? "You've already opened this class" : scheduled ? `${scheduled.subject} · ${scheduled.grade}` : ""}
                       style={{
-                        padding: 0, verticalAlign: "middle", height: 56,
+                        padding: 0, verticalAlign: "middle", height: 66,
                         borderBottom: pi < periods.length - 1 ? `1px solid ${T.line}` : "none",
                         borderRight: i < week.dates.length - 1 ? `1px solid ${T.line}` : "none",
-                        background: on ? T.red : already ? "#f0ece8" : isToday(d) ? T.today : "#fff",
-                        cursor: already ? "not-allowed" : "pointer",
+                        background: on ? T.red : already ? "#f0ece8" : available && isToday(d) ? T.today : available ? "#fff" : "#faf9f8",
+                        cursor: available && !already ? "pointer" : already ? "not-allowed" : "default",
                         transition: "background .1s", textAlign: "center"
                       }}
-                      onMouseEnter={e => { if (!on && !already) e.currentTarget.style.background = T.redBg; }}
+                      onMouseEnter={e => { if (available && !on && !already) e.currentTarget.style.background = T.redBg; }}
                       onMouseLeave={e => {
-                        if (!on && !already) e.currentTarget.style.background = isToday(d) ? T.today : "#fff";
+                        if (available && !on && !already) e.currentTarget.style.background = isToday(d) ? T.today : "#fff";
                       }}>
-                      {on && <span style={{ color: "#fff", fontSize: 17, fontWeight: 700 }}>✓</span>}
-                      {!on && already && (
-                        <span style={{ color: T.muted, fontSize: 10.5 }}>yours</span>
+                      {on && scheduled && (
+                        <div style={{ color: "#fff", padding: "6px 8px", lineHeight: 1.25 }}>
+                          <div style={{ fontSize: 11.5, fontWeight: 800 }}>{scheduled.subject}</div>
+                          <div style={{ fontSize: 10, opacity: .9, marginTop: 2 }}>{scheduled.grade}{scheduled.room ? ` · ${scheduled.room}` : ""} · ✓</div>
+                        </div>
                       )}
-                      {!on && !already && n > 0 && (
+                      {!on && already && (
+                        <span style={{ color: T.muted, fontSize: 10.5 }}>already open</span>
+                      )}
+                      {!on && !already && scheduled && (
+                        <div style={{ padding: "6px 8px", lineHeight: 1.25 }}>
+                          <div style={{ color: T.ink, fontSize: 11.5, fontWeight: 800 }}>{scheduled.subject}</div>
+                          <div style={{ color: T.muted, fontSize: 10, marginTop: 2 }}>{scheduled.grade}{scheduled.room ? ` · ${scheduled.room}` : ""}</div>
+                        </div>
+                      )}
+                      {!on && !already && !scheduled && division !== "Secondary" && n > 0 && (
                         <span style={{ color: T.muted, fontSize: 10.5 }}>{n} open</span>
                       )}
-                      {!on && !already && n === 0 && (
+                      {!on && !already && !scheduled && division !== "Secondary" && n === 0 && (
                         <span style={{ color: "#dcd8d3", fontSize: 15 }}>+</span>
                       )}
                     </td>
