@@ -215,14 +215,11 @@ function SignIn({ onSignIn, err }) {
         </div>
 
         <div style={{ padding: 24 }}>
-          <p style={{ color: T.text2, fontSize: 13, margin: "0 0 4px" }}>
-            Three weeks of open classrooms, {WINDOW_LABEL}.
-          </p>
-          <p style={{ color: T.text2, fontSize: 13, margin: "0 0 4px" }}>
-            Offer yours, and find colleagues to visit.
-          </p>
-          <p style={{ color: T.text2, fontSize: 13, margin: "0 0 18px" }}>
-            Sign in with your IST Microsoft account.
+          <p style={{
+            color: T.text2, fontSize: 15, fontWeight: 600,
+            margin: "0 0 18px"
+          }}>
+            {WINDOW_LABEL}
           </p>
           <button onClick={onSignIn} style={{
             background: T.red, color: "#fff", border: "none", borderRadius: 10,
