@@ -253,3 +253,46 @@ export function periodLabel(division, key) {
   if (!p) return key;
   return division === "Elementary" ? p.label : `Periods ${p.label}`;
 }
+
+
+/* Timetable-aware Open Doors selection.
+   A week = Days 1–5; B week = Days 6–10. */
+export const SECONDARY_TIMETABLE = {
+  "Joe Schaaf": {
+    "1|B34": { subject: "English A SL", grade: "11", room: "201" },
+    "1|B56": { subject: "English A HL", grade: "12", room: "201" },
+    "1|B78": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" },
+    "3|B34": { subject: "English A SL", grade: "12", room: "201" },
+    "3|B56": { subject: "English A HL", grade: "11", room: "201" },
+    "4|B34": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" },
+    "5|B34": { subject: "English A SL", grade: "12", room: "201" },
+    "5|B78": { subject: "English A SL", grade: "11", room: "201" },
+    "6|B34": { subject: "English A HL", grade: "11", room: "201" },
+    "6|B56": { subject: "English A SL", grade: "12", room: "201" },
+    "7|B34": { subject: "English A HL", grade: "12", room: "201" },
+    "8|B12": { subject: "English A SL", grade: "11", room: "201" },
+    "8|B34": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" },
+    "9|B56": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" },
+    "9|B78": { subject: "English A SL", grade: "12", room: "201" },
+    "10|B12": { subject: "English A SL", grade: "11", room: "201" },
+    "10|B78": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" }
+  }
+};
+
+export function timetableDayForDate(iso) {
+  const { week, dayIndex } = locate(iso);
+  if (!week) return null;
+  return (week.label.startsWith("A") ? 1 : 6) + dayIndex;
+}
+
+function normTeacherName(s = "") {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+export function scheduledClassFor(name, iso, periodKey) {
+  const wanted = normTeacherName(name);
+  const teacher = Object.keys(SECONDARY_TIMETABLE).find(n => normTeacherName(n) === wanted);
+  if (!teacher) return null;
+  const day = timetableDayForDate(iso);
+  return SECONDARY_TIMETABLE[teacher][`${day}|${periodKey}`] || null;
+}
