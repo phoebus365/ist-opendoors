@@ -383,6 +383,13 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
   const GRADES = division === "Elementary" ? GRADES_ES : GRADES_SEC;
   const keys = Object.keys(picked);
 
+  function normalizeScheduledGrade(raw = "") {
+    const s = String(raw).trim();
+    if (/^Grade\s+\d+/i.test(s)) return s.match(/^Grade\s+\d+/i)[0].replace(/^grade/i, "Grade");
+    const m = s.match(/\d+/);
+    return m ? `Grade ${m[0]}` : GRADES[0];
+  }
+
   function toggle(date, pk) {
     const k = `${date}|${pk}`;
     const scheduled = division === "Secondary" ? scheduledClassFor(myName, date, pk) : null;
@@ -394,11 +401,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
         ? {
             ...BLANK_SLOT,
             ...scheduled,
-            grade: /^Grade\s/i.test(scheduled.grade || "")
-              ? scheduled.grade
-              : /^\d+$/.test(scheduled.grade || "")
-                ? `Grade ${scheduled.grade}`
-                : scheduled.grade,
+            grade: normalizeScheduledGrade(scheduled.grade),
             manualSubject: true,
             scheduled: true
           }
