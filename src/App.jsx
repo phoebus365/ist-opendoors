@@ -391,7 +391,17 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
       const n = { ...p };
       if (n[k]) delete n[k];
       else n[k] = scheduled
-        ? { ...BLANK_SLOT, ...scheduled, manualSubject: true, scheduled: true }
+        ? {
+            ...BLANK_SLOT,
+            ...scheduled,
+            grade: /^Grade\s/i.test(scheduled.grade || "")
+              ? scheduled.grade
+              : /^\d+$/.test(scheduled.grade || "")
+                ? `Grade ${scheduled.grade}`
+                : scheduled.grade,
+            manualSubject: true,
+            scheduled: true
+          }
         : { ...BLANK_SLOT, grade: GRADES[0] };
       return n;
     });
@@ -481,16 +491,6 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
                 cursor: "pointer", fontFamily: FONT, textDecoration: "underline"
               }}>remove</button>
             </div>
-
-            {s.scheduled && (
-              <div style={{
-                background: T.redBg, border: `1px solid ${T.redMid}`, borderRadius: 7,
-                padding: "10px 12px", marginBottom: 14, fontSize: 12.5, color: T.text2
-              }}>
-                <strong style={{ color: T.ink }}>From your timetable:</strong>{" "}
-                {s.subject}{s.grade ? ` · ${s.grade}` : ""}{s.room ? ` · Room ${s.room}` : ""}
-              </div>
-            )}
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
               <div style={{ flex: "2 1 220px" }}>
@@ -697,7 +697,7 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                       {on && scheduled && (
                         <div style={{ color: "#fff", padding: "6px 8px", lineHeight: 1.25 }}>
                           <div style={{ fontSize: 11.5, fontWeight: 800 }}>{scheduled.subject}</div>
-                          <div style={{ fontSize: 10, opacity: .9, marginTop: 2 }}>{scheduled.grade}{scheduled.room ? ` · ${scheduled.room}` : ""} · ✓</div>
+                          <div style={{ fontSize: 10, opacity: .9, marginTop: 2 }}>{/^Grade\s/i.test(scheduled.grade || "") ? scheduled.grade : `Grade ${scheduled.grade}`}{scheduled.room ? ` · Room ${scheduled.room}` : ""} · ✓</div>
                         </div>
                       )}
                       {!on && already && (
@@ -706,7 +706,7 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                       {!on && !already && scheduled && (
                         <div style={{ padding: "6px 8px", lineHeight: 1.25 }}>
                           <div style={{ color: T.ink, fontSize: 11.5, fontWeight: 800 }}>{scheduled.subject}</div>
-                          <div style={{ color: T.muted, fontSize: 10, marginTop: 2 }}>{scheduled.grade}{scheduled.room ? ` · ${scheduled.room}` : ""}</div>
+                          <div style={{ color: T.muted, fontSize: 10, marginTop: 2 }}>{/^Grade\s/i.test(scheduled.grade || "") ? scheduled.grade : `Grade ${scheduled.grade}`}{scheduled.room ? ` · Room ${scheduled.room}` : ""}</div>
                         </div>
                       )}
                       {!on && !already && !scheduled && division !== "Secondary" && n > 0 && (
