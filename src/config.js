@@ -77,7 +77,7 @@ export const FOCUS_GENERAL = [
   "Student Collaboration / Group Work","Differentiation","Questioning Techniques",
   "Formative Assessment","Inquiry-Based Learning","Student Agency / Choice",
   "Read Aloud","Vocabulary Instruction","Station / Centre Rotation",
-  "Play-Based Learning","Use of Technology"
+  "Play-Based Learning","Use of Technology","AI"
 ];
 
 export const ALL_FOCUS = [...FOCUS_PEDAGOGY, ...FOCUS_GENERAL];
