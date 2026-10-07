@@ -61,6 +61,8 @@ function Modal({ children, onClose, width = 560 }) {
   );
 }
 
+const ADMIN_EMAILS = new Set(["cam_wallace@istianjin.org.cn","michael_conway@istianjin.org.cn","steve_moody@istianjin.org.cn","joe_schaaf@istianjin.org.cn","mariana_suarez@istianjin.org.cn","gemma_lowrey@istianjin.org.cn","ellie_chuah@istianjin.org.cn","kit_haines@istianjin.org.cn"]);
+
 /* ═══════════════════════════════════════════════ app */
 
 export default function App() {
@@ -75,7 +77,8 @@ export default function App() {
   const [flash, setFlash] = useState(null);
 
   const me = session?.user;
-  const myEmail = me?.email ?? "";
+  const myEmail = (me?.email ?? "").toLowerCase();
+  const isAdmin = ADMIN_EMAILS.has(myEmail);
   const myName =
     me?.user_metadata?.full_name ||
     me?.user_metadata?.name ||
@@ -149,7 +152,7 @@ export default function App() {
       {flash && <Banner tone="good" onClose={() => setFlash(null)}>{flash}</Banner>}
       <Header
         myName={myName} onSignOut={signOut}
-        mode={mode} setMode={setMode}
+        mode={mode} setMode={setMode} isAdmin={isAdmin}
       />
       {body}
     </div>
@@ -164,6 +167,8 @@ export default function App() {
       entries={entries}
     />
   );
+
+  if (mode === "admin" && isAdmin) return shell(<AdminDashboard entries={entries} visits={visits} />);
 
   if (mode === "open") return shell(
     <OpenFlow
@@ -182,6 +187,59 @@ export default function App() {
       setErr={setErr} say={say}
     />
   );
+}
+
+
+function AdminDashboard({ entries, visits }) {
+  const [division, setDivision] = useState("All School");
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState("");
+  const scoped = entries.filter(e => division === "All School" || e.division === division);
+  const ids = new Set(scoped.map(e => e.id));
+  const booked = visits.filter(v => v.status === "going" && ids.has(v.entry_id));
+  const hosts = new Set(scoped.map(e => e.host_email.toLowerCase()));
+  const visitors = new Set(booked.map(v => v.visitor_email.toLowerCase()));
+  const completed = [...visitors].filter(email => booked.filter(v => v.visitor_email.toLowerCase() === email).length >= 2).length;
+  const people = new Map();
+  for (const e of scoped) {
+    const email = e.host_email.toLowerCase();
+    if (!people.has(email)) people.set(email, { name: e.host_name, email, opened: 0, booked: 0, received: 0 });
+    people.get(email).opened++;
+  }
+  for (const v of booked) {
+    const email = v.visitor_email.toLowerCase();
+    if (!people.has(email)) people.set(email, { name: v.visitor_name, email, opened: 0, booked: 0, received: 0 });
+    people.get(email).booked++;
+    const host = scoped.find(e => e.id === v.entry_id);
+    if (host) people.get(host.host_email.toLowerCase()).received++;
+  }
+  const rows = [...people.values()].filter(p => (p.name + p.email).toLowerCase().includes(search.toLowerCase())).sort((a,b) => a.name.localeCompare(b.name));
+  return <main style={{ maxWidth: 1180, margin: "0 auto", padding: "32px 24px" }}>
+    <h2 style={{ fontSize: 24, marginBottom: 8 }}>Open Doors · Admin dashboard</h2>
+    <p style={{ color: T.muted, fontSize: 13 }}>Bookings count toward the two-visit target; attendance is not verified.</p>
+    <div style={{ display: "flex", gap: 8, margin: "20px 0" }}>
+      {["All School","Elementary","Secondary"].map(d => <button key={d} onClick={() => setDivision(d)} style={{ ...btnGhost, background: division === d ? T.red : "#fff", color: division === d ? "#fff" : T.text }}>{d}</button>)}
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: 25 }}>
+      {[["Classes open",scoped.length],["Visits booked",booked.length],["Teachers hosting",hosts.size],["2 visits booked",completed]].map(([label,value]) =>
+        <div key={label} style={{ background:"#fff",border:`1px solid ${T.line}`,borderRadius:10,padding:20,textAlign:"center" }}>
+          <div style={{ fontSize:36,fontWeight:800,color:T.red }}>{value}</div><div style={{ color:T.text2,fontSize:13 }}>{label}</div>
+        </div>)}
+    </div>
+    <input aria-label="Search teachers" placeholder="Find a teacher…" value={search} onChange={e=>setSearch(e.target.value)} style={{...input,maxWidth:340,marginBottom:16}} />
+    <div style={{ overflowX:"auto",background:"#fff",border:`1px solid ${T.line}`,borderRadius:10 }}>
+      <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
+        <thead><tr>{["Teacher","Classes opened","Visits booked","Requirement","Visitors received"].map(h=><th key={h} style={{padding:14,textAlign:"left",borderBottom:`1px solid ${T.line}`}}>{h}</th>)}</tr></thead>
+        <tbody>{rows.map(p=><tr key={p.email} onClick={()=>setExpanded(expanded===p.email?"":p.email)} style={{cursor:"pointer",background:expanded===p.email?T.redBg:"#fff"}}>
+          <td style={{padding:13}}><strong>{p.name}</strong>{expanded===p.email && <div style={{fontSize:11,color:T.text2,marginTop:5}}>{p.email}</div>}</td>
+          <td style={{padding:13}}>{p.opened}</td><td style={{padding:13}}>{p.booked}</td>
+          <td style={{padding:13,color:p.booked>=2?"#2d6b2d":T.text2,fontWeight:700}}>{Math.min(p.booked,2)}/2 {p.booked>=2?"✓":""}</td>
+          <td style={{padding:13}}>{p.received}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+    <p style={{fontSize:12,color:T.muted}}>Only teachers with an open class or an active booking appear until a full staff roster is loaded.</p>
+  </main>;
 }
 
 /* ═══════════════════════════════════════════════ sign-in */
@@ -254,10 +312,11 @@ function Banner({ children, tone, onClose }) {
   );
 }
 
-function Header({ myName, onSignOut, mode, setMode }) {
+function Header({ myName, onSignOut, mode, setMode, isAdmin }) {
   const tabs = [
     ["open",  "Open my classroom"],
-    ["visit", "Visit a class"]
+    ["visit", "Visit a class"],
+    ...(isAdmin ? [["admin", "Admin dashboard"]] : [])
   ];
   return (
     <header style={{
