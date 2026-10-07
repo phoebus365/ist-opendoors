@@ -80,6 +80,9 @@ export const FOCUS_GENERAL = [
   "Play-Based Learning","Use of Technology","AI"
 ];
 
+FOCUS_PEDAGOGY.sort((a, b) => a.localeCompare(b));
+FOCUS_GENERAL.sort((a, b) => a.localeCompare(b));
+
 export const ALL_FOCUS = [...FOCUS_PEDAGOGY, ...FOCUS_GENERAL];
 
 /* ───────────────────────────────────────────────────────────────
