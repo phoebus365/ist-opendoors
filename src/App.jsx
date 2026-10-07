@@ -724,17 +724,6 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
         Your scheduled classes are shown below. Click the classes you're happy to open — free periods stay out of the way.
       </p>
 
-      {entries.filter(e => e.host_email.toLowerCase() === myEmail && e.division === division).length > 0 && (
-        <div style={{ marginBottom: 22, padding: 16, background: "#fff", border: `1px solid ${T.line}`, borderRadius: 8 }}>
-          <strong>Your open classes</strong>
-          {entries.filter(e => e.host_email.toLowerCase() === myEmail && e.division === division).map(e => (
-            <div key={e.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${T.line}` }}>
-              <span style={{fontSize:13}}>{fmtLong(e.date_str)} · {periodLabel(e.division,e.period_key)} · {e.subject} · {e.grade}</span>
-              <button onClick={() => cancelOpenClass(e)} style={{...btnGhost,color:T.red,flexShrink:0}}>Cancel opening</button>
-            </div>
-          ))}
-        </div>
-      )}
       {editModal}
       <DivisionTabs division={division} onChange={switchDivision} />
 
@@ -819,7 +808,7 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                         padding: 0, verticalAlign: "middle", height: 66,
                         borderBottom: pi < periods.length - 1 ? `1px solid ${T.line}` : "none",
                         borderRight: i < week.dates.length - 1 ? `1px solid ${T.line}` : "none",
-                        background: on ? T.red : already ? "#f0ece8" : available && isToday(d) ? T.today : available ? "#fff" : "#faf9f8",
+                        background: on ? T.red : already ? "#e4f3e8" : available && isToday(d) ? T.today : available ? "#fff" : "#f0efed",
                         cursor: ownEntry || available && !already ? "pointer" : "default",
                         transition: "background .1s", textAlign: "center"
                       }}
@@ -834,7 +823,7 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                         </div>
                       )}
                       {!on && already && (
-                        <span style={{ color: T.red, fontSize: 10.5, fontWeight:700 }}>Open · Edit</span>
+                        <span style={{ color: "#267444", fontSize: 11, fontWeight:800 }}>Open · Manage</span>
                       )}
                       {!on && !already && scheduled && (
                         <div style={{ padding: "6px 8px", lineHeight: 1.25 }}>
