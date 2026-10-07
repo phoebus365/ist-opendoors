@@ -1324,15 +1324,15 @@ function ClassChip({ e, dim, n, mine, onOpen }) {
       </span>
       {tags.length > 0 && (
         <span style={{ display: "block", marginTop: 4 }}>
-          {tags.slice(0, 2).map((t, i) => (
+          {tags.slice(0, 5).map((t, i) => (
             <span key={i} style={{
               display: "inline-block", background: "rgba(255,255,255,.65)",
               border: `1px solid ${line}`,
               borderRadius: 999, fontSize: 9.5, padding: "1px 6px", marginRight: 3, marginBottom: 2
             }}>{t}</span>
           ))}
-          {tags.length > 2 && (
-            <span style={{ fontSize: 9.5, opacity: .75 }}>+{tags.length - 2}</span>
+          {tags.length > 5 && (
+            <span style={{ fontSize: 9.5, opacity: .75 }}>+{tags.length - 5}</span>
           )}
         </span>
       )}
