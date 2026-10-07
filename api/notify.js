@@ -100,6 +100,16 @@ export default async function handler(req, res) {
       );
     }
 
+    else if (kind === "class_cancelled") {
+      await send(tok, visitor.email,
+        `Class visit cancelled: ${entry.subject}`,
+        SHELL(`
+          <p style="font-size:15px;margin:0 0 4px"><strong>${host.name}</strong> has cancelled this open classroom session.</p>
+          ${slot(entry)}
+          <p style="font-size:13.5px;color:#55524e">Your booking is cancelled. You can choose another class on Open Doors.</p>`)
+      );
+    }
+
     else if (kind === "visit_cancelled") {
       await send(tok, host.email,
         `${visitor.name} can no longer visit`,
