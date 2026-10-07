@@ -436,6 +436,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
   const [picked, setPicked] = useState({});   // "date|periodKey" -> slot data
   const [step, setStep] = useState("pick");   // pick | detail
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   const PERIODS = periodsFor(division);
   const SUBJECTS = division === "Elementary" ? SUBJECTS_ES : SUBJECTS_SEC;
@@ -506,6 +507,18 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
     setBusy(false);
   }
 
+  async function saveOpenClass() {
+    if (!editing?.subject?.trim()) return;
+    const { data, error } = await supabase.from("opendoors_entries")
+      .update({ subject: editing.subject.trim(), grade: editing.grade, room: editing.room,
+        strategies: editing.strategies, standards: editing.standards, note: editing.note || null })
+      .eq("id", editing.id).eq("host_email", myEmail).select().single();
+    if (error) { setErr("Could not update class. " + error.message); return; }
+    setEntries(p => p.map(e => e.id === data.id ? data : e));
+    setEditing(null);
+    say("Open class updated.");
+  }
+
   async function cancelOpenClass(entry) {
     const registered = visits.filter(v => v.entry_id === entry.id && v.status === "going");
     const msg = registered.length
@@ -540,6 +553,27 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
     entries.filter(e => e.division === division && e.host_email === myEmail)
       .map(e => `${e.date_str}|${e.period_key}`)
   );
+
+  const editModal = editing && <Modal onClose={() => setEditing(null)} width={620}>
+    <h2 style={{fontSize:21,margin:"0 0 8px"}}>Edit open class</h2>
+    <p style={{color:T.text2,fontSize:13}}>{fmtLong(editing.date_str)} · {periodLabel(editing.division,editing.period_key)}</p>
+    {[["Subject","subject"],["Grade","grade"],["Room","room"]].map(([label,key])=><div key={key} style={{marginBottom:12}}>
+      <label style={lbl}>{label}</label>
+      <input style={input} value={editing[key] || ""} onChange={e=>setEditing(p=>({...p,[key]:e.target.value}))}/>
+    </div>)}
+    <label style={lbl}>What will you be highlighting? (optional)</label>
+    <FocusPicker value={editing.strategies || []} onChange={v=>setEditing(p=>({...p,strategies:v}))}/>
+    <div style={{height:12}}/>
+    <label style={lbl}>Standards (optional)</label>
+    <StandardsPicker value={editing.standards || []} onChange={v=>setEditing(p=>({...p,standards:v}))}/>
+    <div style={{height:12}}/>
+    <label style={lbl}>Lesson note (optional)</label>
+    <textarea style={input} rows={3} value={editing.note || ""} onChange={e=>setEditing(p=>({...p,note:e.target.value}))}/>
+    <div style={{display:"flex",gap:10,justifyContent:"space-between",marginTop:20}}>
+      <button style={{...btnGhost,color:T.red}} onClick={()=>{const e=editing;setEditing(null);cancelOpenClass(e);}}>Cancel opening</button>
+      <div style={{display:"flex",gap:10}}><button style={btnGhost} onClick={()=>setEditing(null)}>Close</button><button style={btn("big")} onClick={saveOpenClass}>Save changes</button></div>
+    </div>
+  </Modal>;
 
   if (step === "detail") return (
     <main style={{ maxWidth: 820, margin: "0 auto", padding: "36px 24px 0" }}>
@@ -701,6 +735,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
           ))}
         </div>
       )}
+      {editModal}
       <DivisionTabs division={division} onChange={switchDivision} />
 
       {WEEKS.map((w, i) => (
@@ -708,7 +743,8 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
           key={i} week={w} division={division} periods={PERIODS}
           picked={picked} toggle={toggle}
           counts={minePerSlot} mineOwn={mineOwn}
-          myName={myName}
+          myName={myName} onManage={setEditing}
+          ownEntries={entries.filter(e => e.host_email.toLowerCase() === myEmail && e.division === division)}
         />
       ))}
 
@@ -756,7 +792,7 @@ function DivisionTabs({ division, onChange }) {
   );
 }
 
-function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, myName }) {
+function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, myName, onManage, ownEntries }) {
   return (
     <div style={{ marginBottom: 38 }}>
       <WeekHeading week={week} />
@@ -771,19 +807,20 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                   const k = `${d}|${p.key}`;
                   const on = !!picked[k];
                   const already = mineOwn.has(k);
+                  const ownEntry = ownEntries.find(e => e.date_str === d && e.period_key === p.key);
                   const n = counts[k] || 0;
                   const scheduled = division === "Secondary" ? scheduledClassFor(myName, d, p.key) : null;
                   const available = division !== "Secondary" || !!scheduled;
                   return (
                     <td key={d}
-                      onClick={() => available && !already && toggle(d, p.key)}
+                      onClick={() => ownEntry ? onManage({...ownEntry}) : available && !already && toggle(d, p.key)}
                       title={already ? "You've already opened this class" : scheduled ? `${scheduled.subject} · ${scheduled.grade}` : ""}
                       style={{
                         padding: 0, verticalAlign: "middle", height: 66,
                         borderBottom: pi < periods.length - 1 ? `1px solid ${T.line}` : "none",
                         borderRight: i < week.dates.length - 1 ? `1px solid ${T.line}` : "none",
                         background: on ? T.red : already ? "#f0ece8" : available && isToday(d) ? T.today : available ? "#fff" : "#faf9f8",
-                        cursor: available && !already ? "pointer" : already ? "not-allowed" : "default",
+                        cursor: ownEntry || available && !already ? "pointer" : "default",
                         transition: "background .1s", textAlign: "center"
                       }}
                       onMouseEnter={e => { if (available && !on && !already) e.currentTarget.style.background = T.redBg; }}
@@ -797,7 +834,7 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                         </div>
                       )}
                       {!on && already && (
-                        <span style={{ color: T.muted, fontSize: 10.5 }}>already open</span>
+                        <span style={{ color: T.red, fontSize: 10.5, fontWeight:700 }}>Open · Edit</span>
                       )}
                       {!on && !already && scheduled && (
                         <div style={{ padding: "6px 8px", lineHeight: 1.25 }}>
