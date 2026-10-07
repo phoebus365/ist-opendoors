@@ -173,7 +173,7 @@ export default function App() {
   if (mode === "open") return shell(
     <OpenFlow
       division={division} setDivision={setDivision}
-      entries={entries} setEntries={setEntries}
+      entries={entries} setEntries={setEntries} visits={visits} setVisits={setVisits}
       myEmail={myEmail} myName={myName}
       setErr={setErr} say={say} setMode={setMode}
     />
@@ -432,7 +432,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
 
 const BLANK_SLOT = { subject: "", grade: "", room: "", focus: [], standards: [], note: "", manualSubject: false };
 
-function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName, setErr, say, setMode }) {
+function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisits, myEmail, myName, setErr, say, setMode }) {
   const [picked, setPicked] = useState({});   // "date|periodKey" -> slot data
   const [step, setStep] = useState("pick");   // pick | detail
   const [busy, setBusy] = useState(false);
@@ -504,6 +504,29 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
       setPicked({}); setStep("pick"); setMode(null);
     }
     setBusy(false);
+  }
+
+  async function cancelOpenClass(entry) {
+    const registered = visits.filter(v => v.entry_id === entry.id && v.status === "going");
+    const msg = registered.length
+      ? `Cancel this open class? ${registered.length} colleague(s) are signed up and will be notified.`
+      : "Remove this open class from the board?";
+    if (!window.confirm(msg)) return;
+    const { error } = await supabase.from("opendoors_entries").delete()
+      .eq("id", entry.id).eq("host_email", myEmail);
+    if (error) { setErr("Could not remove class. " + error.message); return; }
+    setEntries(p => p.filter(e => e.id !== entry.id));
+    setVisits(p => p.filter(v => v.entry_id !== entry.id));
+    say("Class removed from the board.");
+    for (const v of registered) {
+      notify({
+        kind: "class_cancelled",
+        host: { name: entry.host_name, email: entry.host_email },
+        visitor: { name: v.visitor_name, email: v.visitor_email },
+        entry: { subject: entry.subject, grade: entry.grade, room: entry.room,
+          date: entry.date_str, period: periodLabel(entry.division, entry.period_key) }
+      });
+    }
   }
 
   /* already-offered slots, so the grid can show them */
@@ -667,6 +690,17 @@ function OpenFlow({ division, setDivision, entries, setEntries, myEmail, myName,
         Your scheduled classes are shown below. Click the classes you're happy to open — free periods stay out of the way.
       </p>
 
+      {entries.filter(e => e.host_email.toLowerCase() === myEmail && e.division === division).length > 0 && (
+        <div style={{ marginBottom: 22, padding: 16, background: "#fff", border: `1px solid ${T.line}`, borderRadius: 8 }}>
+          <strong>Your open classes</strong>
+          {entries.filter(e => e.host_email.toLowerCase() === myEmail && e.division === division).map(e => (
+            <div key={e.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${T.line}` }}>
+              <span style={{fontSize:13}}>{fmtLong(e.date_str)} · {periodLabel(e.division,e.period_key)} · {e.subject} · {e.grade}</span>
+              <button onClick={() => cancelOpenClass(e)} style={{...btnGhost,color:T.red,flexShrink:0}}>Cancel opening</button>
+            </div>
+          ))}
+        </div>
+      )}
       <DivisionTabs division={division} onChange={switchDivision} />
 
       {WEEKS.map((w, i) => (
