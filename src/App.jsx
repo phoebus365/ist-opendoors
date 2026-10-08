@@ -213,7 +213,7 @@ function AdminDashboard({ entries, visits, walkins }) {
   }
   for (const v of booked) {
     const email = v.visitor_email.toLowerCase();
-    if (!people.has(email)) people.set(email, { name: v.visitor_name, email, opened: 0, booked: 0, received: 0 });
+    if (!people.has(email)) people.set(email, { name: v.visitor_name, email, opened: 0, booked: 0, walkin: 0, received: 0 });
     people.get(email).booked++;
     const host = scoped.find(e => e.id === v.entry_id);
     if (host) people.get(host.host_email.toLowerCase()).received++;
@@ -233,7 +233,7 @@ function AdminDashboard({ entries, visits, walkins }) {
       {["All School","Elementary","Secondary"].map(d => <button key={d} onClick={() => setDivision(d)} style={{ ...btnGhost, background: division === d ? T.red : "#fff", color: division === d ? "#fff" : T.text }}>{d}</button>)}
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: 25 }}>
-      {[["Classes open",scoped.length],["Visits booked",booked.length],["Teachers hosting",hosts.size],["2 visits booked",completed]].map(([label,value]) =>
+      {[["Classes open",scoped.length],["Visits credited",booked.length+walkinVisits.length],["Teachers hosting",hosts.size],["2 visits credited",completed]].map(([label,value]) =>
         <div key={label} style={{ background:"#fff",border:`1px solid ${T.line}`,borderRadius:10,padding:20,textAlign:"center" }}>
           <div style={{ fontSize:36,fontWeight:800,color:T.red }}>{value}</div><div style={{ color:T.text2,fontSize:13 }}>{label}</div>
         </div>)}
