@@ -197,35 +197,53 @@ export default function App() {
 
 
 function RecordVisit({ entries, visits, walkins, setWalkins, myEmail, myName, setErr, say }) {
-  const [selected, setSelected] = useState("");
-  const [busy, setBusy] = useState(false);
-  const choices = entries.filter(e => e.host_email.toLowerCase() !== myEmail)
-    .sort((a,b) => a.date_str.localeCompare(b.date_str));
+  const [date,setDate] = useState("");
+  const [host,setHost] = useState("");
+  const [classLabel,setClassLabel] = useState("");
+  const [busy,setBusy] = useState(false);
+  const dates = WEEKS.flatMap(w=>w.dates);
+  const hosts = [...new Map(entries.filter(e=>e.host_email.toLowerCase()!==myEmail).map(e=>[e.host_email.toLowerCase(),{email:e.host_email,name:e.host_name}])).values()].sort((a,b)=>a.name.localeCompare(b.name));
+  const classes = entries.filter(e=>e.date_str===date && e.host_email.toLowerCase()===host.toLowerCase());
   async function record() {
-    const e = choices.find(x => x.id === selected);
-    if (!e || busy) return;
-    if (visits.some(v => v.entry_id === e.id && v.visitor_email.toLowerCase() === myEmail) ||
-        walkins.some(v => v.entry_id === e.id && v.visitor_email.toLowerCase() === myEmail)) {
-      setErr("This class already counts toward your visits."); return;
+    if (!date || !host || !classLabel || busy) return;
+    const chosen = classes.find(e=>e.id===classLabel);
+    if (chosen && (visits.some(v=>v.entry_id===chosen.id && v.visitor_email.toLowerCase()===myEmail) || walkins.some(v=>v.entry_id===chosen.id && v.visitor_email.toLowerCase()===myEmail))) {
+      setErr("This visit already counts toward your total.");return;
     }
+    const hostObj = hosts.find(h=>h.email.toLowerCase()===host.toLowerCase());
     setBusy(true);
-    const {data,error} = await supabase.from("opendoors_walkins").insert({
-      entry_id:e.id, visitor_email:myEmail, visitor_name:myName
-    }).select().single();
+    const row = {visitor_email:myEmail,visitor_name:myName,visit_date:date,host_email:host,host_name:hostObj?.name||host,
+      class_label:chosen?`${chosen.subject} · ${periodLabel(chosen.division,chosen.period_key)}`:classLabel,
+      entry_id:chosen?.id||null};
+    const {data,error}=await supabase.from("opendoors_walkins").insert(row).select().single();
     setBusy(false);
-    if (error) { setErr("Could not record visit. " + error.message); return; }
-    setWalkins(p=>[...p,data]); setSelected(""); say("Walk-in visit recorded.");
+    if(error){setErr("Could not record visit. "+error.message);return;}
+    setWalkins(p=>[...p,data]);setDate("");setHost("");setClassLabel("");say("Walk-in visit recorded.");
   }
   return <main style={{maxWidth:760,margin:"0 auto",padding:"36px 24px"}}>
     <h2 style={{fontSize:23,margin:"0 0 8px"}}>Record a visit</h2>
-    <p style={{color:T.text2,fontSize:14,lineHeight:1.5}}>For visits you made without booking in advance. Scheduled visits already count automatically.</p>
+    <p style={{color:T.text2,fontSize:14}}>For classroom visits without advance bookings. Booked visits count automatically.</p>
     <div style={{background:"#fff",border:`1px solid ${T.line}`,borderRadius:9,padding:22,marginTop:24}}>
-      <label style={lbl}>Which class did you visit?</label>
-      <select style={input} value={selected} onChange={e=>setSelected(e.target.value)}>
-        <option value="">Choose a class…</option>
-        {choices.map(e=><option key={e.id} value={e.id}>{e.date_str} · {e.host_name} · {e.subject} · {periodLabel(e.division,e.period_key)}</option>)}
+      <label style={lbl}>Date visited</label>
+      <select style={input} value={date} onChange={e=>{setDate(e.target.value);setClassLabel("");}}>
+        <option value="">Choose a date…</option>
+        {dates.map(d=><option key={d} value={d}>{fmtLong(d)}</option>)}
       </select>
-      <button style={{...btn("big"),marginTop:16}} disabled={!selected || busy} onClick={record}>{busy?"Recording…":"Record visit"}</button>
+      <div style={{height:14}}/>
+      <label style={lbl}>Teacher visited</label>
+      <select style={input} value={host} onChange={e=>{setHost(e.target.value);setClassLabel("");}}>
+        <option value="">Choose a teacher…</option>
+        {hosts.map(h=><option key={h.email} value={h.email}>{h.name}</option>)}
+      </select>
+      <div style={{height:14}}/>
+      <label style={lbl}>Class visited</label>
+      <select style={input} value={classLabel} onChange={e=>setClassLabel(e.target.value)} disabled={!date||!host}>
+        <option value="">Choose a class…</option>
+        {classes.map(e=><option key={e.id} value={e.id}>{e.subject} · {periodLabel(e.division,e.period_key)}</option>)}
+        <option value="Other classroom visit">Other classroom visit (not listed)</option>
+      </select>
+      <button style={{...btn("big"),marginTop:16}} disabled={!date||!host||!classLabel||busy} onClick={record}>{busy?"Recording…":"Record visit"}</button>
+      {!hosts.length && <p style={{color:T.muted,fontSize:12}}>Teacher choices will appear as colleagues open classrooms.</p>}
     </div>
   </main>;
 }
@@ -237,7 +255,7 @@ function AdminDashboard({ entries, visits, walkins }) {
   const scoped = entries.filter(e => division === "All School" || e.division === division);
   const ids = new Set(scoped.map(e => e.id));
   const booked = visits.filter(v => v.status === "going" && ids.has(v.entry_id));
-  const walkinVisits = walkins.filter(v => ids.has(v.entry_id) && !booked.some(b => b.entry_id === v.entry_id && b.visitor_email.toLowerCase() === v.visitor_email.toLowerCase()));
+  const walkinVisits = walkins.filter(v => (v.entry_id ? ids.has(v.entry_id) : division === "All School" || entries.find(e=>e.host_email.toLowerCase()===v.host_email?.toLowerCase())?.division===division) && !booked.some(b => b.entry_id === v.entry_id && v.entry_id && b.visitor_email.toLowerCase() === v.visitor_email.toLowerCase()));
   const hosts = new Set(scoped.map(e => e.host_email.toLowerCase()));
   const visitors = new Set([...booked,...walkinVisits].map(v => v.visitor_email.toLowerCase()));
   const completed = [...visitors].filter(email => [...booked,...walkinVisits].filter(v => v.visitor_email.toLowerCase() === email).length >= 2).length;
