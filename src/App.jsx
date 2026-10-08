@@ -72,6 +72,7 @@ export default function App() {
   const [division, setDivision] = useState("Secondary");
   const [entries, setEntries] = useState([]);
   const [visits, setVisits] = useState([]);
+  const [walkins, setWalkins] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -104,21 +105,24 @@ export default function App() {
 
   async function signOut() {
     await supabase.auth.signOut();
-    setEntries([]); setVisits([]); setLoaded(false); setMode(null);
+    setEntries([]); setVisits([]); setWalkins([]); setLoaded(false); setMode(null);
   }
 
   /* ── data */
   const load = useCallback(async () => {
     if (!session) return;
     try {
-      const [e, v] = await Promise.all([
+      const [e, v, w] = await Promise.all([
         supabase.from("opendoors_entries").select("*"),
-        supabase.from("opendoors_visits").select("*").eq("status", "going")
+        supabase.from("opendoors_visits").select("*").eq("status", "going"),
+        PREVIEW ? Promise.resolve({data:[],error:null}) : supabase.from("opendoors_walkins").select("*")
       ]);
       if (e.error) throw e.error;
       if (v.error) throw v.error;
+      if (w.error) throw w.error;
       setEntries(e.data || []);
       setVisits(v.data || []);
+      setWalkins(w.data || []);
       setErr(null);
     } catch (e) {
       setErr("Could not load the board. " + (e.message || ""));
@@ -168,7 +172,7 @@ export default function App() {
     />
   );
 
-  if (mode === "admin" && isAdmin) return shell(<AdminDashboard entries={entries} visits={visits} />);
+  if (mode === "admin" && isAdmin) return shell(<AdminDashboard entries={entries} visits={visits} walkins={walkins} />);
 
   if (mode === "open") return shell(
     <OpenFlow
@@ -182,7 +186,7 @@ export default function App() {
   return shell(
     <VisitFlow
       division={division} setDivision={setDivision}
-      entries={entries} visits={visits} setVisits={setVisits}
+      entries={entries} visits={visits} setVisits={setVisits} walkins={walkins} setWalkins={setWalkins}
       myEmail={myEmail} myName={myName}
       setErr={setErr} say={say}
     />
@@ -190,26 +194,34 @@ export default function App() {
 }
 
 
-function AdminDashboard({ entries, visits }) {
+function AdminDashboard({ entries, visits, walkins }) {
   const [division, setDivision] = useState("All School");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState("");
   const scoped = entries.filter(e => division === "All School" || e.division === division);
   const ids = new Set(scoped.map(e => e.id));
   const booked = visits.filter(v => v.status === "going" && ids.has(v.entry_id));
+  const walkinVisits = walkins.filter(v => ids.has(v.entry_id) && !booked.some(b => b.entry_id === v.entry_id && b.visitor_email.toLowerCase() === v.visitor_email.toLowerCase()));
   const hosts = new Set(scoped.map(e => e.host_email.toLowerCase()));
-  const visitors = new Set(booked.map(v => v.visitor_email.toLowerCase()));
-  const completed = [...visitors].filter(email => booked.filter(v => v.visitor_email.toLowerCase() === email).length >= 2).length;
+  const visitors = new Set([...booked,...walkinVisits].map(v => v.visitor_email.toLowerCase()));
+  const completed = [...visitors].filter(email => [...booked,...walkinVisits].filter(v => v.visitor_email.toLowerCase() === email).length >= 2).length;
   const people = new Map();
   for (const e of scoped) {
     const email = e.host_email.toLowerCase();
-    if (!people.has(email)) people.set(email, { name: e.host_name, email, opened: 0, booked: 0, received: 0 });
+    if (!people.has(email)) people.set(email, { name: e.host_name, email, opened: 0, booked: 0, walkin: 0, received: 0 });
     people.get(email).opened++;
   }
   for (const v of booked) {
     const email = v.visitor_email.toLowerCase();
     if (!people.has(email)) people.set(email, { name: v.visitor_name, email, opened: 0, booked: 0, received: 0 });
     people.get(email).booked++;
+    const host = scoped.find(e => e.id === v.entry_id);
+    if (host) people.get(host.host_email.toLowerCase()).received++;
+  }
+  for (const v of walkinVisits) {
+    const email = v.visitor_email.toLowerCase();
+    if (!people.has(email)) people.set(email, { name:v.visitor_name,email,opened:0,booked:0,walkin:0,received:0 });
+    people.get(email).walkin++;
     const host = scoped.find(e => e.id === v.entry_id);
     if (host) people.get(host.host_email.toLowerCase()).received++;
   }
@@ -229,11 +241,11 @@ function AdminDashboard({ entries, visits }) {
     <input aria-label="Search teachers" placeholder="Find a teacher…" value={search} onChange={e=>setSearch(e.target.value)} style={{...input,maxWidth:340,marginBottom:16}} />
     <div style={{ overflowX:"auto",background:"#fff",border:`1px solid ${T.line}`,borderRadius:10 }}>
       <table style={{ width:"100%",borderCollapse:"collapse",fontSize:13 }}>
-        <thead><tr>{["Teacher","Classes opened","Visits booked","Requirement","Visitors received"].map(h=><th key={h} style={{padding:14,textAlign:"left",borderBottom:`1px solid ${T.line}`}}>{h}</th>)}</tr></thead>
+        <thead><tr>{["Teacher","Classes opened","Booked","Walk-in","Total","Complete","Visitors received"].map(h=><th key={h} style={{padding:14,textAlign:"left",borderBottom:`1px solid ${T.line}`}}>{h}</th>)}</tr></thead>
         <tbody>{rows.map(p=><tr key={p.email} onClick={()=>setExpanded(expanded===p.email?"":p.email)} style={{cursor:"pointer",background:expanded===p.email?T.redBg:"#fff"}}>
           <td style={{padding:13}}><strong>{p.name}</strong>{expanded===p.email && <div style={{fontSize:11,color:T.text2,marginTop:5}}>{p.email}</div>}</td>
-          <td style={{padding:13}}>{p.opened}</td><td style={{padding:13}}>{p.booked}</td>
-          <td style={{padding:13,color:p.booked>=2?"#2d6b2d":T.text2,fontWeight:700}}>{Math.min(p.booked,2)}/2 {p.booked>=2?"✓":""}</td>
+          <td style={{padding:13}}>{p.opened}</td><td style={{padding:13}}>{p.booked}</td><td style={{padding:13}}>{p.walkin}</td><td style={{padding:13}}>{p.booked+p.walkin}</td>
+          <td style={{padding:13,color:p.booked+p.walkin>=2?"#2d6b2d":T.text2,fontWeight:700}}>{p.booked+p.walkin>=2?"✓":"—"}</td>
           <td style={{padding:13}}>{p.received}</td>
         </tr>)}</tbody>
       </table>
@@ -1056,7 +1068,7 @@ function FocusGroup({ title, items, value, toggle, divider }) {
 
 /* ═══════════════════════════════════════════════ visit flow */
 
-function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail, myName, setErr, say }) {
+function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins, setWalkins, myEmail, myName, setErr, say }) {
   const [q, setQ] = useState("");
   const [subjectF, setSubjectF] = useState("");
   const [gradeF, setGradeF] = useState("");
@@ -1065,6 +1077,8 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail,
   const [listView, setListView] = useState(false);
   const [detail, setDetail] = useState(null);
   const [cancelling, setCancelling] = useState(null);
+  const [recording, setRecording] = useState(false);
+  const [recordEntry, setRecordEntry] = useState("");
 
   const PERIODS = periodsFor(division);
   const SUBJECTS = division === "Elementary" ? SUBJECTS_ES : SUBJECTS_SEC;
@@ -1073,6 +1087,23 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail,
 
   useEffect(() => { if (filtering) setListView(true); }, [filtering]);
   useEffect(() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); }, [division]);
+
+  async function recordWalkin() {
+    const entry = entries.find(e => e.id === recordEntry);
+    if (!entry) return;
+    if (entry.host_email.toLowerCase() === myEmail) { setErr("You cannot record a visit to your own class."); return; }
+    if (visits.some(v => v.entry_id === entry.id && v.visitor_email.toLowerCase() === myEmail) ||
+        walkins.some(v => v.entry_id === entry.id && v.visitor_email.toLowerCase() === myEmail)) {
+      setErr("This class already counts toward your visits."); return;
+    }
+    const {data,error} = await supabase.from("opendoors_walkins").insert({
+      entry_id: entry.id, visitor_email: myEmail, visitor_name: myName
+    }).select().single();
+    if (error) { setErr("Could not record visit. " + error.message); return; }
+    setWalkins(p => [...p,data]);
+    setRecording(false); setRecordEntry("");
+    say("Walk-in visit recorded.");
+  }
 
   const visitorsOf = id => visits.filter(v => v.entry_id === id);
 
@@ -1155,6 +1186,19 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, myEmail,
   return (
     <>
       <main style={{ maxWidth: 1180, margin: "0 auto", padding: "36px 24px 0" }}>
+      <div style={{margin:"0 0 20px",padding:15,background:"#fff",border:`1px solid ${T.line}`,borderRadius:9}}>
+        <button style={btnGhost} onClick={()=>setRecording(v=>!v)}>{recording?"Close":"Record a walk-in visit"}</button>
+        {recording && <div style={{marginTop:12}}>
+          <label style={lbl}>Which class did you visit?</label>
+          <select style={input} value={recordEntry} onChange={e=>setRecordEntry(e.target.value)}>
+            <option value="">Choose a class…</option>
+            {entries.filter(e=>e.host_email.toLowerCase()!==myEmail).sort((a,b)=>a.date_str.localeCompare(b.date_str)).map(e=>
+              <option key={e.id} value={e.id}>{e.date_str} · {e.host_name} · {e.subject} · {periodLabel(e.division,e.period_key)}</option>)}
+          </select>
+          <button style={{...btn("big"),marginTop:12}} disabled={!recordEntry} onClick={recordWalkin}>Record visit</button>
+        </div>}
+      </div>
+
         <h2 style={{ fontSize: 22, color: T.ink, margin: "0 0 6px", fontWeight: 700 }}>
           Find a class to visit
         </h2>
