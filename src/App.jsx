@@ -215,10 +215,14 @@ function RecordVisit({ entries, visits, walkins, setWalkins, timetables, myEmail
     ...Object.keys(timetables.sec||{}).map(name=>({id:"s:"+name,name,division:"Secondary",email:""})),
     ...Object.keys(timetables.es||{}).map(name=>({id:"e:"+name,name:name.replace(/-/g," · "),division:"Elementary",email:""}))
   ];
-  const hosts = [...new Map([...faculty,...entries.map(e=>({
-    id:"o:"+e.host_email,name:e.host_name,division:e.division,email:e.host_email
-  }))].filter(h=>normalize(h.name)!==normalize(myName)).map(h=>[h.id,h])).values()]
-    .sort((a,b)=>a.name.localeCompare(b.name));
+  const hostsByName = new Map(faculty.filter(h=>normalize(h.name)!==normalize(myName)).map(h=>[normalize(h.name),h]));
+  for (const e of entries) {
+    if (normalize(e.host_name)===normalize(myName)) continue;
+    const k=normalize(e.host_name);
+    if (hostsByName.has(k)) hostsByName.set(k,{...hostsByName.get(k),email:e.host_email});
+    else hostsByName.set(k,{id:"o:"+e.host_email,name:e.host_name,division:e.division,email:e.host_email});
+  }
+  const hosts = [...hostsByName.values()].sort((a,b)=>a.name.localeCompare(b.name));
   const selectedHost = hosts.find(h=>h.id===host);
   const {week,dayIndex} = locate(date);
   const rotationDay = (week?.label.startsWith("A")?1:6)+dayIndex;
@@ -261,7 +265,7 @@ function RecordVisit({ entries, visits, walkins, setWalkins, timetables, myEmail
       setErr("You've already recorded this visit.");return;
     }
     setBusy(true);
-    const row = {entry_id:entry?.id||null,visit_date:date,host_name:selectedHost.name,host_email:selectedHost.email||null,
+    const row = {entry_id:entry?.id||null,visit_date:date,division:selectedHost.division,host_name:selectedHost.name,host_email:selectedHost.email||null,
       visitor_name:myName,visitor_email:myEmail,class_label:label};
     const {data,error}=await supabase.from("opendoors_walkins").insert(row).select().single();
     setBusy(false);
@@ -308,7 +312,7 @@ function AdminDashboard({ entries, visits, walkins }) {
   const scoped = entries.filter(e => division === "All School" || e.division === division);
   const ids = new Set(scoped.map(e => e.id));
   const booked = visits.filter(v => v.status === "going" && ids.has(v.entry_id));
-  const walkinVisits = walkins.filter(v => (v.entry_id ? ids.has(v.entry_id) : division === "All School" || entries.find(e=>e.host_email.toLowerCase()===v.host_email?.toLowerCase())?.division===division) && !booked.some(b => b.entry_id === v.entry_id && v.entry_id && b.visitor_email.toLowerCase() === v.visitor_email.toLowerCase()));
+  const walkinVisits = walkins.filter(v => (v.entry_id ? ids.has(v.entry_id) : division === "All School" || v.division === division) && !booked.some(b => v.entry_id && b.entry_id === v.entry_id && b.visitor_email.toLowerCase() === v.visitor_email.toLowerCase()));
   const hosts = new Set(scoped.map(e => e.host_email.toLowerCase()));
   const visitors = new Set([...booked,...walkinVisits].map(v => v.visitor_email.toLowerCase()));
   const completed = [...visitors].filter(email => [...booked,...walkinVisits].filter(v => v.visitor_email.toLowerCase() === email).length >= 2).length;
