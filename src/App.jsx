@@ -172,6 +172,8 @@ export default function App() {
     />
   );
 
+  if (mode === "record") return shell(<RecordVisit entries={entries} visits={visits} walkins={walkins} setWalkins={setWalkins} myEmail={myEmail} myName={myName} setErr={setErr} say={say} />);
+
   if (mode === "admin" && isAdmin) return shell(<AdminDashboard entries={entries} visits={visits} walkins={walkins} />);
 
   if (mode === "open") return shell(
@@ -193,6 +195,40 @@ export default function App() {
   );
 }
 
+
+function RecordVisit({ entries, visits, walkins, setWalkins, myEmail, myName, setErr, say }) {
+  const [selected, setSelected] = useState("");
+  const [busy, setBusy] = useState(false);
+  const choices = entries.filter(e => e.host_email.toLowerCase() !== myEmail)
+    .sort((a,b) => a.date_str.localeCompare(b.date_str));
+  async function record() {
+    const e = choices.find(x => x.id === selected);
+    if (!e || busy) return;
+    if (visits.some(v => v.entry_id === e.id && v.visitor_email.toLowerCase() === myEmail) ||
+        walkins.some(v => v.entry_id === e.id && v.visitor_email.toLowerCase() === myEmail)) {
+      setErr("This class already counts toward your visits."); return;
+    }
+    setBusy(true);
+    const {data,error} = await supabase.from("opendoors_walkins").insert({
+      entry_id:e.id, visitor_email:myEmail, visitor_name:myName
+    }).select().single();
+    setBusy(false);
+    if (error) { setErr("Could not record visit. " + error.message); return; }
+    setWalkins(p=>[...p,data]); setSelected(""); say("Walk-in visit recorded.");
+  }
+  return <main style={{maxWidth:760,margin:"0 auto",padding:"36px 24px"}}>
+    <h2 style={{fontSize:23,margin:"0 0 8px"}}>Record a visit</h2>
+    <p style={{color:T.text2,fontSize:14,lineHeight:1.5}}>For visits you made without booking in advance. Scheduled visits already count automatically.</p>
+    <div style={{background:"#fff",border:`1px solid ${T.line}`,borderRadius:9,padding:22,marginTop:24}}>
+      <label style={lbl}>Which class did you visit?</label>
+      <select style={input} value={selected} onChange={e=>setSelected(e.target.value)}>
+        <option value="">Choose a class…</option>
+        {choices.map(e=><option key={e.id} value={e.id}>{e.date_str} · {e.host_name} · {e.subject} · {periodLabel(e.division,e.period_key)}</option>)}
+      </select>
+      <button style={{...btn("big"),marginTop:16}} disabled={!selected || busy} onClick={record}>{busy?"Recording…":"Record visit"}</button>
+    </div>
+  </main>;
+}
 
 function AdminDashboard({ entries, visits, walkins }) {
   const [division, setDivision] = useState("All School");
@@ -328,6 +364,7 @@ function Header({ myName, onSignOut, mode, setMode, isAdmin }) {
   const tabs = [
     ["open",  "Open my classroom"],
     ["visit", "Visit a class"],
+    ["record", "Record a visit"],
     ...(isAdmin ? [["admin", "Admin dashboard"]] : [])
   ];
   return (
@@ -428,6 +465,13 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
           body="Browse what colleagues have offered, filter by subject or focus, and sign up to drop in."
           cta="Browse the board"
           onClick={() => setMode("visit")}
+        />
+        <Card
+          accent={T.red}
+          title="Record a visit"
+          body="Visited a classroom without booking? Record your walk-in visit here."
+          cta="Record my visit"
+          onClick={() => setMode("record")}
         />
       </div>
 
