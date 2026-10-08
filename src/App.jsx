@@ -1230,19 +1230,6 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
   return (
     <>
       <main style={{ maxWidth: 1180, margin: "0 auto", padding: "36px 24px 0" }}>
-      <div style={{margin:"0 0 20px",padding:15,background:"#fff",border:`1px solid ${T.line}`,borderRadius:9}}>
-        <button style={btnGhost} onClick={()=>setRecording(v=>!v)}>{recording?"Close":"Record a walk-in visit"}</button>
-        {recording && <div style={{marginTop:12}}>
-          <label style={lbl}>Which class did you visit?</label>
-          <select style={input} value={recordEntry} onChange={e=>setRecordEntry(e.target.value)}>
-            <option value="">Choose a class…</option>
-            {entries.filter(e=>e.host_email.toLowerCase()!==myEmail).sort((a,b)=>a.date_str.localeCompare(b.date_str)).map(e=>
-              <option key={e.id} value={e.id}>{e.date_str} · {e.host_name} · {e.subject} · {periodLabel(e.division,e.period_key)}</option>)}
-          </select>
-          <button style={{...btn("big"),marginTop:12}} disabled={!recordEntry} onClick={recordWalkin}>Record visit</button>
-        </div>}
-      </div>
-
         <h2 style={{ fontSize: 22, color: T.ink, margin: "0 0 6px", fontWeight: 700 }}>
           Find a class to visit
         </h2>
