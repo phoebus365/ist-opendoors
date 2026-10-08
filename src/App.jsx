@@ -197,22 +197,24 @@ export default function App() {
 
 
 function RecordVisit({ entries, visits, walkins, setWalkins, myEmail, myName, setErr, say }) {
-  const [date,setDate] = useState("");
+  const [date,setDate] = useState(() => { const today = new Date(); const iso = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`; return WEEKS.some(w=>w.dates.includes(iso)) ? iso : WEEKS[0].dates[0]; });
   const [host,setHost] = useState("");
   const [classLabel,setClassLabel] = useState("");
   const [busy,setBusy] = useState(false);
   const dates = WEEKS.flatMap(w=>w.dates);
-  const hosts = [...new Map(entries.filter(e=>e.host_email.toLowerCase()!==myEmail).map(e=>[e.host_email.toLowerCase(),{email:e.host_email,name:e.host_name}])).values()].sort((a,b)=>a.name.localeCompare(b.name));
-  const classes = entries.filter(e=>e.date_str===date && e.host_email.toLowerCase()===host.toLowerCase());
+  const facultyNames = ["Tara","Monique","Clare","Jo","Nadia","Chris","Billy","Michael","Celeste","Nicole","Gemma","Sara","Stef","Toni","Isha","Victoria","Islen","Linnea","Ben","Wendy","Durian","Esther","Helen","Fu Ping","Jennifer","Mariana","Joe Schaaf"];
+  const hosts = [...new Map([...facultyNames.map(name=>({email:"",name})), ...entries.map(e=>({email:e.host_email,name:e.host_name}))].filter(h=>h.name.toLowerCase()!==myName.toLowerCase()).map(h=>[h.name.toLowerCase(),h])).values()].sort((a,b)=>a.name.localeCompare(b.name));
+  const classes = entries.filter(e=>e.date_str===date && e.host_name.toLowerCase()===host.toLowerCase());
   async function record() {
     if (!date || !host || !classLabel || busy) return;
     const chosen = classes.find(e=>e.id===classLabel);
     if (chosen && (visits.some(v=>v.entry_id===chosen.id && v.visitor_email.toLowerCase()===myEmail) || walkins.some(v=>v.entry_id===chosen.id && v.visitor_email.toLowerCase()===myEmail))) {
       setErr("This visit already counts toward your total.");return;
     }
-    const hostObj = hosts.find(h=>h.email.toLowerCase()===host.toLowerCase());
+    const hostObj = hosts.find(h=>h.name.toLowerCase()===host.toLowerCase());
     setBusy(true);
-    const row = {visitor_email:myEmail,visitor_name:myName,visit_date:date,host_email:host,host_name:hostObj?.name||host,
+    if (walkins.some(v=>v.visitor_email.toLowerCase()===myEmail && v.visit_date===date && v.host_name?.toLowerCase()===host.toLowerCase() && v.class_label===(chosen?`${chosen.subject} · ${periodLabel(chosen.division,chosen.period_key)}`:classLabel))) {setBusy(false);setErr("This visit has already been recorded.");return;}
+    const row = {visitor_email:myEmail,visitor_name:myName,visit_date:date,host_email:hostObj?.email||null,host_name:hostObj?.name||host,
       class_label:chosen?`${chosen.subject} · ${periodLabel(chosen.division,chosen.period_key)}`:classLabel,
       entry_id:chosen?.id||null};
     const {data,error}=await supabase.from("opendoors_walkins").insert(row).select().single();
@@ -233,17 +235,18 @@ function RecordVisit({ entries, visits, walkins, setWalkins, myEmail, myName, se
       <label style={lbl}>Teacher visited</label>
       <select style={input} value={host} onChange={e=>{setHost(e.target.value);setClassLabel("");}}>
         <option value="">Choose a teacher…</option>
-        {hosts.map(h=><option key={h.email} value={h.email}>{h.name}</option>)}
+        {hosts.map(h=><option key={h.email} value={h.name}>{h.name}</option>)}
       </select>
       <div style={{height:14}}/>
       <label style={lbl}>Class visited</label>
       <select style={input} value={classLabel} onChange={e=>setClassLabel(e.target.value)} disabled={!date||!host}>
         <option value="">Choose a class…</option>
         {classes.map(e=><option key={e.id} value={e.id}>{e.subject} · {periodLabel(e.division,e.period_key)}</option>)}
-        <option value="Other classroom visit">Other classroom visit (not listed)</option>
+        <option value="Other classroom visit">Class not listed — enter manually</option>
       </select>
+      {classLabel==="Other classroom visit" && <p style={{fontSize:12,color:T.text2}}>This will record a general classroom visit to the selected teacher.</p>}
       <button style={{...btn("big"),marginTop:16}} disabled={!date||!host||!classLabel||busy} onClick={record}>{busy?"Recording…":"Record visit"}</button>
-      {!hosts.length && <p style={{color:T.muted,fontSize:12}}>Teacher choices will appear as colleagues open classrooms.</p>}
+
     </div>
   </main>;
 }
