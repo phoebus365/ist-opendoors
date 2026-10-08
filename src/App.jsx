@@ -201,12 +201,13 @@ function RecordVisit({ entries, visits, walkins, setWalkins, myEmail, myName, se
   const [host,setHost] = useState("");
   const [classLabel,setClassLabel] = useState("");
   const [busy,setBusy] = useState(false);
+  const [manualClass,setManualClass] = useState("");
   const dates = WEEKS.flatMap(w=>w.dates);
-  const facultyNames = ["Tara","Monique","Clare","Jo","Nadia","Chris","Billy","Michael","Celeste","Nicole","Gemma","Sara","Stef","Toni","Isha","Victoria","Islen","Linnea","Ben","Wendy","Durian","Esther","Helen","Fu Ping","Jennifer","Mariana","Joe Schaaf"];
+  const facultyNames = ["Marium Ahmad","Ambika Balakrishna","Kate Bark","Wendy Bekkenk","Ellie Chuah","Michael Conway","Trey Craig","Samuel Dejohn","Geoff Diegel","Li Dong","Christo du Plooy","Jeff Errington","Casey Grove","Ted Guggenheim","Kit Haines","Maddy Haines","Rebecca Jiang","Sheila Kim","Muriel King","Lawrence Kok","Wenjun Lv","Ryan Nel","Valeria Rocha","Joe Schaaf","Aileena Song","Birgit Stolte","Gareth Williams","Lily Yang","Hao Zhai","Islen Craig","Victoria Lee","Jennifer Liu","Esther Luppino","Fu Ping","Gerben Silvis","Linnea Simon","Isha Joshi","Michael Tschoepel","Durian Wang","Helen Wang","Tara (ELC)","Monique (ELC)","Clare (K)","Jo (G1)","Nadia (G1)","Chris (G2)","Billy (G3)","Michael (G4)","Celeste (G4)","Nicole (G5)","Gemma (G5)","Sara (ELA)","Stef (ELA)","Toni (IN)","Ben (PSPE)","Mariana Suarez"];
   const hosts = [...new Map([...facultyNames.map(name=>({email:"",name})), ...entries.map(e=>({email:e.host_email,name:e.host_name}))].filter(h=>h.name.toLowerCase()!==myName.toLowerCase()).map(h=>[h.name.toLowerCase(),h])).values()].sort((a,b)=>a.name.localeCompare(b.name));
   const classes = entries.filter(e=>e.date_str===date && e.host_name.toLowerCase()===host.toLowerCase());
   async function record() {
-    if (!date || !host || !classLabel || busy) return;
+    if (!date || !host || !classLabel || (classLabel === "Other classroom visit" && !manualClass.trim()) || busy) return;
     const chosen = classes.find(e=>e.id===classLabel);
     if (chosen && (visits.some(v=>v.entry_id===chosen.id && v.visitor_email.toLowerCase()===myEmail) || walkins.some(v=>v.entry_id===chosen.id && v.visitor_email.toLowerCase()===myEmail))) {
       setErr("This visit already counts toward your total.");return;
@@ -215,12 +216,12 @@ function RecordVisit({ entries, visits, walkins, setWalkins, myEmail, myName, se
     setBusy(true);
     if (walkins.some(v=>v.visitor_email.toLowerCase()===myEmail && v.visit_date===date && v.host_name?.toLowerCase()===host.toLowerCase() && v.class_label===(chosen?`${chosen.subject} · ${periodLabel(chosen.division,chosen.period_key)}`:classLabel))) {setBusy(false);setErr("This visit has already been recorded.");return;}
     const row = {visitor_email:myEmail,visitor_name:myName,visit_date:date,host_email:hostObj?.email||null,host_name:hostObj?.name||host,
-      class_label:chosen?`${chosen.subject} · ${periodLabel(chosen.division,chosen.period_key)}`:classLabel,
+      class_label:chosen?`${chosen.subject} · ${periodLabel(chosen.division,chosen.period_key)}`:classLabel === "Other classroom visit" ? manualClass.trim() : classLabel,
       entry_id:chosen?.id||null};
     const {data,error}=await supabase.from("opendoors_walkins").insert(row).select().single();
     setBusy(false);
     if(error){setErr("Could not record visit. "+error.message);return;}
-    setWalkins(p=>[...p,data]);setDate("");setHost("");setClassLabel("");say("Walk-in visit recorded.");
+    setWalkins(p=>[...p,data]);setDate("");setHost("");setClassLabel("");setManualClass("");say("Walk-in visit recorded.");
   }
   return <main style={{maxWidth:760,margin:"0 auto",padding:"36px 24px"}}>
     <h2 style={{fontSize:23,margin:"0 0 8px"}}>Record a visit</h2>
@@ -244,8 +245,8 @@ function RecordVisit({ entries, visits, walkins, setWalkins, myEmail, myName, se
         {classes.map(e=><option key={e.id} value={e.id}>{e.subject} · {periodLabel(e.division,e.period_key)}</option>)}
         <option value="Other classroom visit">Class not listed — enter manually</option>
       </select>
-      {classLabel==="Other classroom visit" && <p style={{fontSize:12,color:T.text2}}>This will record a general classroom visit to the selected teacher.</p>}
-      <button style={{...btn("big"),marginTop:16}} disabled={!date||!host||!classLabel||busy} onClick={record}>{busy?"Recording…":"Record visit"}</button>
+      {classLabel==="Other classroom visit" && <div style={{marginTop:12}}><label style={lbl}>Class or subject visited</label><input style={input} value={manualClass} onChange={e=>setManualClass(e.target.value)} placeholder="e.g. Grade 4 Maths" /></div>}
+      <button style={{...btn("big"),marginTop:16}} disabled={!date||!host||!classLabel||(classLabel==="Other classroom visit"&&!manualClass.trim())||busy} onClick={record}>{busy?"Recording…":"Record visit"}</button>
 
     </div>
   </main>;
