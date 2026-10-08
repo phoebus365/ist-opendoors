@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase, notify } from "./supabase";
 import { PREVIEW } from "./preview";
+import { loadTimetables } from "./timetable-data";
 import {
   WINDOW_LABEL, DAY_NAMES, SHORT_DAYS, WEEKS,
   SUBJECTS_ES, SUBJECTS_SEC, GRADES_ES, GRADES_SEC,
@@ -73,6 +74,7 @@ export default function App() {
   const [entries, setEntries] = useState([]);
   const [visits, setVisits] = useState([]);
   const [walkins, setWalkins] = useState([]);
+  const [timetables, setTimetables] = useState({sec:{},es:{}});
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -84,6 +86,8 @@ export default function App() {
     me?.user_metadata?.full_name ||
     me?.user_metadata?.name ||
     (myEmail ? myEmail.split("@")[0].replace(/[._]/g, " ") : "");
+
+  useEffect(() => { loadTimetables().then(setTimetables).catch(e => console.error("Timetable data error",e)); }, []);
 
   /* ── auth */
   useEffect(() => {
@@ -172,7 +176,7 @@ export default function App() {
     />
   );
 
-  if (mode === "record") return shell(<RecordVisit entries={entries} visits={visits} walkins={walkins} setWalkins={setWalkins} myEmail={myEmail} myName={myName} setErr={setErr} say={say} />);
+  if (mode === "record") return shell(<RecordVisit entries={entries} visits={visits} walkins={walkins} setWalkins={setWalkins} timetables={timetables} myEmail={myEmail} myName={myName} setErr={setErr} say={say} />);
 
   if (mode === "admin" && isAdmin) return shell(<AdminDashboard entries={entries} visits={visits} walkins={walkins} />);
 
@@ -196,58 +200,103 @@ export default function App() {
 }
 
 
-function RecordVisit({ entries, visits, walkins, setWalkins, myEmail, myName, setErr, say }) {
-  const [date,setDate] = useState(() => { const today = new Date(); const iso = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`; return WEEKS.some(w=>w.dates.includes(iso)) ? iso : WEEKS[0].dates[0]; });
+function RecordVisit({ entries, visits, walkins, setWalkins, timetables, myEmail, myName, setErr, say }) {
+  const today = () => {
+    const now = new Date(), iso = [now.getFullYear(), String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
+    return WEEKS.some(w => w.dates.includes(iso)) ? iso : WEEKS[0].dates[0];
+  };
+  const [date,setDate] = useState(today);
   const [host,setHost] = useState("");
-  const [classLabel,setClassLabel] = useState("");
+  const [classKey,setClassKey] = useState("");
+  const [manual,setManual] = useState("");
   const [busy,setBusy] = useState(false);
-  const [manualClass,setManualClass] = useState("");
-  const dates = WEEKS.flatMap(w=>w.dates);
-  const facultyNames = ["Marium Ahmad","Ambika Balakrishna","Kate Bark","Wendy Bekkenk","Ellie Chuah","Michael Conway","Trey Craig","Samuel Dejohn","Geoff Diegel","Li Dong","Christo du Plooy","Jeff Errington","Casey Grove","Ted Guggenheim","Kit Haines","Maddy Haines","Rebecca Jiang","Sheila Kim","Muriel King","Lawrence Kok","Wenjun Lv","Ryan Nel","Valeria Rocha","Joe Schaaf","Aileena Song","Birgit Stolte","Gareth Williams","Lily Yang","Hao Zhai","Islen Craig","Victoria Lee","Jennifer Liu","Esther Luppino","Fu Ping","Gerben Silvis","Linnea Simon","Isha Joshi","Michael Tschoepel","Durian Wang","Helen Wang","Tara (ELC)","Monique (ELC)","Clare (K)","Jo (G1)","Nadia (G1)","Chris (G2)","Billy (G3)","Michael (G4)","Celeste (G4)","Nicole (G5)","Gemma (G5)","Sara (ELA)","Stef (ELA)","Toni (IN)","Ben (PSPE)","Mariana Suarez"];
-  const hosts = [...new Map([...facultyNames.map(name=>({email:"",name})), ...entries.map(e=>({email:e.host_email,name:e.host_name}))].filter(h=>h.name.toLowerCase()!==myName.toLowerCase()).map(h=>[h.name.toLowerCase(),h])).values()].sort((a,b)=>a.name.localeCompare(b.name));
-  const classes = entries.filter(e=>e.date_str===date && e.host_name.toLowerCase()===host.toLowerCase());
-  async function record() {
-    if (!date || !host || !classLabel || (classLabel === "Other classroom visit" && !manualClass.trim()) || busy) return;
-    const chosen = classes.find(e=>e.id===classLabel);
-    if (chosen && (visits.some(v=>v.entry_id===chosen.id && v.visitor_email.toLowerCase()===myEmail) || walkins.some(v=>v.entry_id===chosen.id && v.visitor_email.toLowerCase()===myEmail))) {
-      setErr("This visit already counts toward your total.");return;
+  const normalize = x => (x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  const faculty = [
+    ...Object.keys(timetables.sec||{}).map(name=>({id:"s:"+name,name,division:"Secondary",email:""})),
+    ...Object.keys(timetables.es||{}).map(name=>({id:"e:"+name,name:name.replace(/-/g," · "),division:"Elementary",email:""}))
+  ];
+  const hosts = [...new Map([...faculty,...entries.map(e=>({
+    id:"o:"+e.host_email,name:e.host_name,division:e.division,email:e.host_email
+  }))].filter(h=>normalize(h.name)!==normalize(myName)).map(h=>[h.id,h])).values()]
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  const selectedHost = hosts.find(h=>h.id===host);
+  const {week,dayIndex} = locate(date);
+  const rotationDay = (week?.label.startsWith("A")?1:6)+dayIndex;
+  const weekLetter = week?.label.startsWith("A")?"A":"B";
+  const alternatives = [];
+  if(selectedHost?.id.startsWith("s:")) {
+    const timetable = timetables.sec?.[selectedHost.id.slice(2)] || {};
+    for (const [key,details] of Object.entries(timetable)) {
+      if (!key.startsWith(String(rotationDay))) continue;
+      const period = key.slice(String(rotationDay).length);
+      if (!"abcd".includes(period)) continue;
+      const label = `${details[0]}${details[1]?" · "+details[1]:""}${details[2]?" · Room "+details[2]:""} · ${["Periods 1–2","Periods 3–4","Periods 5–6","Periods 7–8"]["abcd".indexOf(period)]}`;
+      alternatives.push({id:"t:"+key,label});
     }
-    const hostObj = hosts.find(h=>h.name.toLowerCase()===host.toLowerCase());
+  } else if(selectedHost?.id.startsWith("e:")) {
+    const timetable = timetables.es?.[selectedHost.id.slice(2)] || {};
+    for (let period=1;period<=8;period++) {
+      const key = weekLetter+(dayIndex+1)+period;
+      const both = "AB"+(dayIndex+1)+period;
+      const labels = [...(timetable[key]||[]),...(timetable[both]||[])];
+      for(const label of [...new Set(labels)]) {
+        if (/school finishes|check out only/i.test(label)) continue;
+        alternatives.push({id:"t:"+key+":"+label,label:`P${period} · ${label}`});
+      }
+    }
+  }
+  const matchedEntries = entries.filter(e=>e.date_str===date && selectedHost &&
+    ((selectedHost.email && e.host_email.toLowerCase()===selectedHost.email.toLowerCase()) ||
+     normalize(e.host_name)===normalize(selectedHost.name)));
+  const available = [...matchedEntries.map(e=>({id:"o:"+e.id,label:`${e.subject} · ${periodLabel(e.division,e.period_key)} (opened)`})),...alternatives];
+  async function record() {
+    if(!selectedHost || !date || !classKey || (classKey==="manual"&&!manual.trim())||busy)return;
+    const entry = classKey.startsWith("o:") ? matchedEntries.find(e=>e.id===classKey.slice(2)) : null;
+    const label = classKey==="manual" ? manual.trim() : (available.find(x=>x.id===classKey)?.label || "");
+    if(entry && (visits.some(v=>v.entry_id===entry.id && v.visitor_email.toLowerCase()===myEmail) ||
+       walkins.some(v=>v.entry_id===entry.id && v.visitor_email.toLowerCase()===myEmail))) {
+       setErr("This class already counts toward your visits.");return;
+    }
+    if(walkins.some(v=>v.visit_date===date && normalize(v.host_name)===normalize(selectedHost.name) && v.class_label===label && v.visitor_email.toLowerCase()===myEmail)) {
+      setErr("You've already recorded this visit.");return;
+    }
     setBusy(true);
-    if (walkins.some(v=>v.visitor_email.toLowerCase()===myEmail && v.visit_date===date && v.host_name?.toLowerCase()===host.toLowerCase() && v.class_label===(chosen?`${chosen.subject} · ${periodLabel(chosen.division,chosen.period_key)}`:classLabel))) {setBusy(false);setErr("This visit has already been recorded.");return;}
-    const row = {visitor_email:myEmail,visitor_name:myName,visit_date:date,host_email:hostObj?.email||null,host_name:hostObj?.name||host,
-      class_label:chosen?`${chosen.subject} · ${periodLabel(chosen.division,chosen.period_key)}`:classLabel === "Other classroom visit" ? manualClass.trim() : classLabel,
-      entry_id:chosen?.id||null};
+    const row = {entry_id:entry?.id||null,visit_date:date,host_name:selectedHost.name,host_email:selectedHost.email||null,
+      visitor_name:myName,visitor_email:myEmail,class_label:label};
     const {data,error}=await supabase.from("opendoors_walkins").insert(row).select().single();
     setBusy(false);
     if(error){setErr("Could not record visit. "+error.message);return;}
-    setWalkins(p=>[...p,data]);setDate("");setHost("");setClassLabel("");setManualClass("");say("Walk-in visit recorded.");
+    setWalkins(p=>[...p,data]);setClassKey("");setManual("");say("Walk-in visit recorded.");
   }
-  return <main style={{maxWidth:760,margin:"0 auto",padding:"36px 24px"}}>
-    <h2 style={{fontSize:23,margin:"0 0 8px"}}>Record a visit</h2>
-    <p style={{color:T.text2,fontSize:14}}>For classroom visits without advance bookings. Booked visits count automatically.</p>
-    <div style={{background:"#fff",border:`1px solid ${T.line}`,borderRadius:9,padding:22,marginTop:24}}>
+  return <main style={{maxWidth:850,margin:"0 auto",padding:"32px 20px"}}>
+    <h2 style={{fontSize:23,margin:"0 0 7px"}}>Record a visit</h2>
+    <p style={{color:T.text2,fontSize:14}}>For classroom visits without a booking. Scheduled visits already count automatically.</p>
+    <div style={{background:"#fff",border:`1px solid ${T.line}`,borderRadius:10,padding:20,marginTop:20}}>
       <label style={lbl}>Date visited</label>
-      <select style={input} value={date} onChange={e=>{setDate(e.target.value);setClassLabel("");}}>
-        <option value="">Choose a date…</option>
-        {dates.map(d=><option key={d} value={d}>{fmtLong(d)}</option>)}
-      </select>
-      <div style={{height:14}}/>
-      <label style={lbl}>Teacher visited</label>
-      <select style={input} value={host} onChange={e=>{setHost(e.target.value);setClassLabel("");}}>
-        <option value="">Choose a teacher…</option>
-        {hosts.map(h=><option key={h.email} value={h.name}>{h.name}</option>)}
-      </select>
-      <div style={{height:14}}/>
-      <label style={lbl}>Class visited</label>
-      <select style={input} value={classLabel} onChange={e=>setClassLabel(e.target.value)} disabled={!date||!host}>
-        <option value="">Choose a class…</option>
-        {classes.map(e=><option key={e.id} value={e.id}>{e.subject} · {periodLabel(e.division,e.period_key)}</option>)}
-        <option value="Other classroom visit">Class not listed — enter manually</option>
-      </select>
-      {classLabel==="Other classroom visit" && <div style={{marginTop:12}}><label style={lbl}>Class or subject visited</label><input style={input} value={manualClass} onChange={e=>setManualClass(e.target.value)} placeholder="e.g. Grade 4 Maths" /></div>}
-      <button style={{...btn("big"),marginTop:16}} disabled={!date||!host||!classLabel||(classLabel==="Other classroom visit"&&!manualClass.trim())||busy} onClick={record}>{busy?"Recording…":"Record visit"}</button>
-
+      {WEEKS.map((w,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"75px repeat(5,minmax(0,1fr))",gap:5,alignItems:"center",margin:"10px 0"}}>
+        <span style={{fontSize:12,fontWeight:700,color:T.red}}>{w.label}</span>
+        {w.dates.map(d=><button key={d} onClick={()=>{setDate(d);setClassKey("");}} style={{
+          fontFamily:FONT,borderRadius:7,border:`1px solid ${date===d?T.red:T.line}`,
+          background:date===d?T.red:"#fff",color:date===d?"#fff":T.ink,padding:"11px 1px",
+          cursor:"pointer",fontWeight:date===d?700:500,fontSize:12
+        }}>{SHORT_DAYS[w.dates.indexOf(d)]} {Number(d.slice(-2))}</button>)}
+      </div>)}
+      <div style={{marginTop:20}}><label style={lbl}>Teacher visited</label>
+        <select style={input} value={host} onChange={e=>{setHost(e.target.value);setClassKey("");}}>
+          <option value="">Choose a teacher…</option>
+          {hosts.map(h=><option value={h.id} key={h.id}>{h.name} · {h.division}</option>)}
+        </select>
+      </div>
+      <div style={{marginTop:16}}><label style={lbl}>Class visited</label>
+        <select style={input} value={classKey} disabled={!host} onChange={e=>{setClassKey(e.target.value);setManual("");}}>
+          <option value="">Choose a class…</option>
+          {available.map(x=><option value={x.id} key={x.id}>{x.label}</option>)}
+          <option value="manual">Don't see your class? Add it manually</option>
+        </select>
+        {classKey==="manual"&&<input style={{...input,marginTop:10}} value={manual} onChange={e=>setManual(e.target.value)}
+          placeholder="Enter the class or lesson you visited" />}
+      </div>
+      <button style={{...btn("big"),marginTop:20}} disabled={busy||!host||!classKey||(classKey==="manual"&&!manual.trim())} onClick={record}>{busy?"Recording…":"Record visit"}</button>
     </div>
   </main>;
 }
