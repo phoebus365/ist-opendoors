@@ -166,6 +166,12 @@ export default function App() {
     </div>
   );
 
+  if (mode === null && new URLSearchParams(window.location.search).has("visit")) {
+    return shell(<VisitFlow division={division} setDivision={setDivision}
+      entries={entries} visits={visits} setVisits={setVisits} walkins={walkins} setWalkins={setWalkins}
+      myEmail={myEmail} myName={myName} setErr={setErr} say={say} />);
+  }
+
   if (mode === null) return shell(
     <Chooser
       setMode={setMode}
@@ -568,6 +574,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
   const [step, setStep] = useState("pick");   // pick | detail
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [inviteDrafts, setInviteDrafts] = useState({});
 
   const PERIODS = periodsFor(division);
   const SUBJECTS = division === "Elementary" ? SUBJECTS_ES : SUBJECTS_SEC;
@@ -610,6 +617,20 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
     setPicked({}); setStep("pick"); setDivision(d);
   }
 
+  // Invitees are optional. Suggestions come from authenticated colleagues
+  // already on the board, with a manual IST email fallback.
+  const knownColleagues = [...new Map(entries.map(e => [e.host_email.toLowerCase(),
+    { name:e.host_name, email:e.host_email.toLowerCase() }])).values()]
+    .filter(p => p.email !== myEmail).sort((a,b) => a.name.localeCompare(b.name));
+  function addInvitee(k) {
+    const email = (inviteDrafts[k] || "").trim().toLowerCase();
+    if (!/^[a-z0-9._%+-]+@istianjin\.org\.cn$/.test(email) || email === myEmail) {
+      setErr("Enter a colleague's IST email address."); return;
+    }
+    setSlot(k, {invitees:[...new Set([...(picked[k].invitees || []),email])]});
+    setInviteDrafts(p => ({...p,[k]:""}));
+  }
+
   const ready = keys.length > 0 && keys.every(k => picked[k].subject);
 
   async function submit() {
@@ -632,7 +653,18 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
       setErr("Could not save. " + error.message);
     } else {
       setEntries(p => [...p, ...data]);
-      say(`${rows.length} ${rows.length === 1 ? "class" : "classes"} added to the board.`);
+      const results = await Promise.all(data.map((entry, i) => {
+        const key = entry.date_str + "|" + entry.period_key;
+        const invitees = picked[key]?.invitees || [];
+        if (!invitees.length) return Promise.resolve({ok:true});
+        return supabase.auth.getSession().then(({data:auth}) => notify({
+          kind:"class_invitation", entry_id:entry.id, access_token:auth.session?.access_token,
+          invitees
+        }));
+      }));
+      const failures = results.filter(r=>!r?.ok).length;
+      if (failures) setErr(`Classes posted, but invitations for ${failures} class(es) could not be sent. The classes are still available for booking.`);
+      else say(`${rows.length} ${rows.length === 1 ? "class" : "classes"} added to the board.`);
       setPicked({}); setStep("pick"); setMode(null);
     }
     setBusy(false);
@@ -801,6 +833,26 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
                 <input value={s.room} onChange={e => setSlot(k, { room: e.target.value })}
                   placeholder="D204" style={input} />
               </div>
+            </div>
+
+            <div style={{marginBottom:18,padding:"13px 14px",background:"#faf9f8",border:`1px solid ${T.line}`,borderRadius:8}}>
+              <label style={lbl}>Invite colleagues (optional)</label>
+              <p style={{fontSize:12,color:T.text2,margin:"0 0 9px"}}>They'll receive an invitation with a link to book. Anyone can still visit.</p>
+              <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+                <input style={{...input,flex:"1 1 190px"}} type="email"
+                  placeholder="Colleague's IST email" list="open-doors-colleagues"
+                  value={inviteDrafts[k] || ""}
+                  onChange={e=>setInviteDrafts(p=>({...p,[k]:e.target.value}))}
+                  onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addInvitee(k);}}} />
+                <button style={btnGhost} onClick={()=>addInvitee(k)}>Add</button>
+              </div>
+              <datalist id="open-doors-colleagues">
+                {knownColleagues.map(p=><option key={p.email} value={p.email}>{p.name}</option>)}
+              </datalist>
+              {(s.invitees || []).length>0 && <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}>
+                {s.invitees.map(email=><button key={email} style={{...btnGhost,padding:"5px 8px",fontSize:11}}
+                  onClick={()=>setSlot(k,{invitees:s.invitees.filter(x=>x!==email)})}>{email} ×</button>)}
+              </div>}
             </div>
 
             <div style={{ marginBottom: 14 }}>
@@ -1215,6 +1267,19 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
   const [stdF, setStdF] = useState("");
   const [listView, setListView] = useState(false);
   const [detail, setDetail] = useState(null);
+  // Invitation links bring the visitor straight to the matching class.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("visit");
+    if (!id) return;
+    const entry = entries.find(e => e.id === id);
+    if (!entry) return;
+    setDivision(entry.division);
+    setDetail(entry);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("visit");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+  }, [entries, setDivision]);
+
   const [cancelling, setCancelling] = useState(null);
   const [recording, setRecording] = useState(false);
   const [recordEntry, setRecordEntry] = useState("");
