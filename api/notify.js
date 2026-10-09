@@ -54,14 +54,17 @@ const SHELL = (body) => `
   <div style="border:1px solid #e3e0dc;border-top:none;border-radius:0 0 6px 6px;padding:24px 22px">
     ${body}
     <p style="font-size:12px;color:#96918b;margin:26px 0 0;border-top:1px solid #e3e0dc;padding-top:14px">
-      International School of Tianjin · 19 October – 6 November 2026
+      International School of Tianjin · 10/19/2026 – 11/06/2026
     </p>
   </div>
 </div>`;
 
+// Format stored ISO dates without timezone conversion; keep UI-formatted dates intact.
+const emailDate = value => String(value ?? "").replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3/$1");
+
 const slot = (e) => `
   <table style="font-size:14px;color:#55524e;border-collapse:collapse;margin:14px 0">
-    <tr><td style="padding:3px 16px 3px 0;color:#96918b">When</td><td><strong>${e.date}</strong> · ${e.period}</td></tr>
+    <tr><td style="padding:3px 16px 3px 0;color:#96918b">When</td><td><strong>${emailDate(e.date)}</strong> · ${e.period}</td></tr>
     <tr><td style="padding:3px 16px 3px 0;color:#96918b">Class</td><td>${e.subject} · ${e.grade}</td></tr>
     ${e.room ? `<tr><td style="padding:3px 16px 3px 0;color:#96918b">Room</td><td>${e.room}</td></tr>` : ""}
   </table>`;
