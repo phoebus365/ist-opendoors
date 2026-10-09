@@ -75,6 +75,7 @@ export default function App() {
   const [visits, setVisits] = useState([]);
   const [walkins, setWalkins] = useState([]);
   const [timetables, setTimetables] = useState({sec:{},es:{}});
+  const [facultyDirectory, setFacultyDirectory] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -88,6 +89,15 @@ export default function App() {
     (myEmail ? myEmail.split("@")[0].replace(/[._]/g, " ") : "");
 
   useEffect(() => { loadTimetables().then(setTimetables).catch(e => console.error("Timetable data error",e)); }, []);
+  useEffect(() => {
+    if (!session) { setFacultyDirectory([]); return; }
+    supabase.from("opendoors_directory").select("name,email,division").order("name")
+      .then(({data,error}) => {
+        if (error) console.warn("Faculty directory unavailable",error.message);
+        else setFacultyDirectory(data || []);
+      });
+  }, [session]);
+
 
   /* ── auth */
   useEffect(() => {
@@ -567,7 +577,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
 
 const BLANK_SLOT = { subject: "", grade: "", room: "", focus: [], standards: [], note: "", manualSubject: false };
 
-function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisits, myEmail, myName, setErr, say, setMode }) {
+function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisits, facultyDirectory, myEmail, myName, setErr, say, setMode }) {
   const [picked, setPicked] = useState({});   // "date|periodKey" -> slot data
   const [step, setStep] = useState("pick");   // pick | detail
   const [busy, setBusy] = useState(false);
@@ -627,6 +637,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
     const existing = knownContacts.get(normalized);
     knownContacts.set(normalized, { email:normalized, name:name || existing?.name || derivedName });
   };
+  for (const person of facultyDirectory) addContact(person.email,person.name);
   for (const email of ADMIN_EMAILS) addContact(email);
   for (const e of entries) addContact(e.host_email, e.host_name);
   for (const v of visits) addContact(v.visitor_email, v.visitor_name);
