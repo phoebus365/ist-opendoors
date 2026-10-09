@@ -16,18 +16,27 @@ export const supabase = PREVIEW
   ? previewClient
   : createClient(url, key);
 
-/* Fire-and-forget notification. The app never blocks on email:
-   if the route isn't live yet, the sign-up still succeeds. */
+/* Returns delivery-request status so cancellation failures are visible.
+   Booking actions may still proceed if email service is unavailable. */
 export async function notify(payload) {
-  if (PREVIEW) return previewNotify(payload);
+  if (PREVIEW) {
+    await previewNotify(payload);
+    return { ok: true };
+  }
   try {
     const r = await fetch("/api/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    if (!r.ok) console.warn("notify failed", r.status, await r.text());
+    if (!r.ok) {
+      const detail = await r.text();
+      console.warn("notify failed", r.status, detail);
+      return { ok: false, status: r.status };
+    }
+    return { ok: true };
   } catch (e) {
     console.warn("notify unreachable", e);
+    return { ok: false, status: "network" };
   }
 }
