@@ -196,6 +196,7 @@ export default function App() {
 
   if (mode === "open") return shell(
     <OpenFlow
+      facultyDirectory={facultyDirectory}
       division={division} setDivision={setDivision}
       entries={entries} setEntries={setEntries} visits={visits} setVisits={setVisits}
       myEmail={myEmail} myName={myName}
