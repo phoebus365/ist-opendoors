@@ -651,25 +651,45 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
   }
 
   async function cancelOpenClass(entry) {
-    const registered = visits.filter(v => v.entry_id === entry.id && v.status === "going");
+    // Read the latest bookings from Supabase, not the possibly stale local board.
+    const { data: currentBookings, error: bookingError } = await supabase
+      .from("opendoors_visits").select("id,visitor_name,visitor_email,status")
+      .eq("entry_id", entry.id).eq("status", "going");
+    if (bookingError) {
+      setErr("Cannot confirm who is booked for this class. Please try again before cancelling. " + bookingError.message);
+      return;
+    }
+    const registered = currentBookings || [];
     const msg = registered.length
-      ? `Cancel this open class? ${registered.length} colleague(s) are signed up and will be notified.`
+      ? `Cancel this open class? ${registered.length} colleague(s) are booked. We'll email each of them.`
       : "Remove this open class from the board?";
     if (!window.confirm(msg)) return;
-    const { error } = await supabase.from("opendoors_entries").delete()
-      .eq("id", entry.id).eq("host_email", myEmail);
-    if (error) { setErr("Could not remove class. " + error.message); return; }
+
+    const { data: removed, error } = await supabase.from("opendoors_entries").delete()
+      .eq("id", entry.id).eq("host_email", myEmail).select("id");
+    if (error || !removed?.length) {
+      setErr("Could not remove class. " + (error?.message || "The class was not deleted."));
+      return;
+    }
     setEntries(p => p.filter(e => e.id !== entry.id));
     setVisits(p => p.filter(v => v.entry_id !== entry.id));
-    say("Class removed from the board.");
-    for (const v of registered) {
-      notify({
-        kind: "class_cancelled",
-        host: { name: entry.host_name, email: entry.host_email },
-        visitor: { name: v.visitor_name, email: v.visitor_email },
-        entry: { subject: entry.subject, grade: entry.grade, room: entry.room,
-          date: entry.date_str, period: periodLabel(entry.division, entry.period_key) }
-      });
+
+    if (!registered.length) {
+      say("Class removed from the board.");
+      return;
+    }
+    const results = await Promise.all(registered.map(v => notify({
+      kind: "class_cancelled",
+      host: { name: entry.host_name, email: entry.host_email },
+      visitor: { name: v.visitor_name, email: v.visitor_email },
+      entry: { subject: entry.subject, grade: entry.grade, room: entry.room,
+        date: entry.date_str, period: periodLabel(entry.division, entry.period_key) }
+    })));
+    const failed = results.filter(r => !r?.ok).length;
+    if (failed) {
+      setErr(`Class cancelled, but email could not be sent to ${failed} of ${registered.length} visitor(s). Contact them directly.`);
+    } else {
+      say(`Class cancelled. Notification email accepted for ${registered.length} visitor(s).`);
     }
   }
 
