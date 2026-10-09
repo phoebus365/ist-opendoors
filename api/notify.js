@@ -73,6 +73,54 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: "email not configured yet" });
   }
 
+  // Invitation emails require a verified signed-in host and their own posted class.
+  // Never trust a browser-supplied sender or recipient list without verification.
+  if (req.body?.kind === "class_invitation") {
+    const { access_token, entry_id, invitees } = req.body;
+    const origin = process.env.VITE_SUPABASE_URL;
+    const anon = process.env.VITE_SUPABASE_ANON_KEY;
+    if (!origin || !anon || !access_token || !entry_id ||
+        !Array.isArray(invitees) || invitees.length < 1 || invitees.length > 12) {
+      return res.status(400).json({error:"Invalid invitation request"});
+    }
+    const addresses = [...new Set(invitees.map(x => String(x).trim().toLowerCase()))];
+    if (addresses.length > 12 || addresses.some(x => !/^[a-z0-9._%+-]+@istianjin\.org\.cn$/.test(x))) {
+      return res.status(400).json({error:"Invitations require IST email addresses"});
+    }
+    try {
+      const headers = { apikey: anon, Authorization: "Bearer " + access_token };
+      const identity = await fetch(origin + "/auth/v1/user", {headers});
+      if (!identity.ok) return res.status(401).json({error:"Please sign in again"});
+      const user = await identity.json();
+      const email = (user.email || "").toLowerCase();
+      if (!email || addresses.includes(email)) return res.status(403).json({error:"Invalid invitation recipients"});
+      const lookup = await fetch(origin + "/rest/v1/opendoors_entries?id=eq." +
+        encodeURIComponent(entry_id) + "&select=id,host_name,host_email,subject,grade,room,date_str,period_key,division", {headers});
+      if (!lookup.ok) throw Error("Could not verify the opened class");
+      const [record] = await lookup.json();
+      if (!record || record.host_email.toLowerCase() !== email) {
+        return res.status(403).json({error:"Only the host may invite colleagues"});
+      }
+      const escape = value => String(value || "").replace(/[&<>"']/g,
+        ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+      const link = "https://opendoors.commonpractices.org/?visit=" + encodeURIComponent(record.id);
+      const body = SHELL(`
+        <p style="font-size:15px"><strong>${escape(record.host_name)}</strong> invites you to visit their classroom.</p>
+        ${slot({date:escape(record.date_str),period:escape(record.period_key),subject:escape(record.subject),grade:escape(record.grade),room:escape(record.room)})}
+        <p><a href="${link}" style="background:#cd2129;color:white;padding:11px 18px;border-radius:5px;text-decoration:none;display:inline-block">View class and book a visit</a></p>
+        <p style="font-size:12px;color:#666">This invitation doesn't reserve a place. Sign in and choose “I'll visit this class” to book.</p>`);
+      const tok = await token();
+      const results = await Promise.allSettled(addresses.map(to => send(tok,to,
+        `Invitation: visit ${record.host_name}'s ${record.subject} class`,body)));
+      const failed = results.filter(x=>x.status==="rejected");
+      if (failed.length) return res.status(502).json({error:`Could not send ${failed.length} invitation(s)`});
+      return res.status(200).json({ok:true,count:addresses.length});
+    } catch (error) {
+      console.error("Invitation delivery:",error);
+      return res.status(500).json({error:"Invitation delivery failed"});
+    }
+  }
+
   const { kind, host, visitor, entry, reason, note } = req.body || {};
   if (!kind || !host || !visitor || !entry) {
     return res.status(400).json({ error: "missing fields" });
