@@ -102,7 +102,7 @@ export default function App() {
   async function signIn() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "azure",
-      options: { scopes: "openid profile email", redirectTo: window.location.origin }
+      options: { scopes: "openid profile email", redirectTo: window.location.origin + window.location.pathname + window.location.search }
     });
     if (error) setErr("Sign-in failed. " + error.message);
   }
@@ -135,6 +135,10 @@ export default function App() {
   }, [session]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (session && new URLSearchParams(window.location.search).has("visit")) setMode("visit");
+  }, [session]);
+
 
   function say(msg) {
     setFlash(msg);
@@ -165,12 +169,6 @@ export default function App() {
       {body}
     </div>
   );
-
-  if (mode === null && new URLSearchParams(window.location.search).has("visit")) {
-    return shell(<VisitFlow division={division} setDivision={setDivision}
-      entries={entries} visits={visits} setVisits={setVisits} walkins={walkins} setWalkins={setWalkins}
-      myEmail={myEmail} myName={myName} setErr={setErr} say={say} />);
-  }
 
   if (mode === null) return shell(
     <Chooser
