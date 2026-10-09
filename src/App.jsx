@@ -573,6 +573,9 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(null);
   const [inviteDrafts, setInviteDrafts] = useState({});
+  const [inviteSearch, setInviteSearch] = useState({});
+  const [inviteExpanded, setInviteExpanded] = useState({});
+  const [inviteManual, setInviteManual] = useState({});
 
   const PERIODS = periodsFor(division);
   const SUBJECTS = division === "Elementary" ? SUBJECTS_ES : SUBJECTS_SEC;
@@ -615,11 +618,23 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
     setPicked({}); setStep("pick"); setDivision(d);
   }
 
-  // Invitees are optional. Suggestions come from authenticated colleagues
-  // already on the board, with a manual IST email fallback.
-  const knownColleagues = [...new Map(entries.map(e => [e.host_email.toLowerCase(),
-    { name:e.host_name, email:e.host_email.toLowerCase() }])).values()]
-    .filter(p => p.email !== myEmail).sort((a,b) => a.name.localeCompare(b.name));
+  // Use only known/verified IST email addresses. Do not infer addresses from names.
+  const knownContacts = new Map();
+  const addContact = (email, name) => {
+    const normalized = String(email || "").trim().toLowerCase();
+    if (!/^[a-z0-9._%+-]+@istianjin\.org\.cn$/.test(normalized) || normalized === myEmail) return;
+    const derivedName = normalized.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c=>c.toUpperCase());
+    const existing = knownContacts.get(normalized);
+    knownContacts.set(normalized, { email:normalized, name:name || existing?.name || derivedName });
+  };
+  for (const email of ADMIN_EMAILS) addContact(email);
+  for (const e of entries) addContact(e.host_email, e.host_name);
+  for (const v of visits) addContact(v.visitor_email, v.visitor_name);
+  const knownColleagues = [...knownContacts.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  const toggleInvitee = (k,email) => {
+    const current = picked[k]?.invitees || [];
+    setSlot(k,{invitees:current.includes(email)?current.filter(x=>x!==email):[...current,email]});
+  };
   function addInvitee(k) {
     const email = (inviteDrafts[k] || "").trim().toLowerCase();
     if (!/^[a-z0-9._%+-]+@istianjin\.org\.cn$/.test(email) || email === myEmail) {
@@ -836,20 +851,47 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
             <div style={{marginBottom:18,padding:"13px 14px",background:"#faf9f8",border:`1px solid ${T.line}`,borderRadius:8}}>
               <label style={lbl}>Invite colleagues (optional)</label>
               <p style={{fontSize:12,color:T.text2,margin:"0 0 9px"}}>They'll receive an invitation with a link to book. Anyone can still visit.</p>
-              <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-                <input style={{...input,flex:"1 1 190px"}} type="email"
-                  placeholder="Colleague's IST email" list="open-doors-colleagues"
-                  value={inviteDrafts[k] || ""}
-                  onChange={e=>setInviteDrafts(p=>({...p,[k]:e.target.value}))}
-                  onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addInvitee(k);}}} />
-                <button style={btnGhost} onClick={()=>addInvitee(k)}>Add</button>
-              </div>
-              <datalist id="open-doors-colleagues">
-                {knownColleagues.map(p=><option key={p.email} value={p.email}>{p.name}</option>)}
-              </datalist>
-              {(s.invitees || []).length>0 && <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}>
-                {s.invitees.map(email=><button key={email} style={{...btnGhost,padding:"5px 8px",fontSize:11}}
-                  onClick={()=>setSlot(k,{invitees:s.invitees.filter(x=>x!==email)})}>{email} ×</button>)}
+              <button type="button" onClick={()=>setInviteExpanded(p=>({...p,[k]:!p[k]}))}
+                style={{...btnGhost,width:"100%",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span>{(s.invitees||[]).length ? `${s.invitees.length} colleague${s.invitees.length===1?"":"s"} selected` : "Choose colleagues to invite"}</span>
+                <span>{inviteExpanded[k] ? "▲" : "▼"}</span>
+              </button>
+              {inviteExpanded[k] && <div style={{background:"#fff",border:`1px solid ${T.line}`,borderRadius:7,marginTop:7,padding:11}}>
+                <input style={input} type="search" value={inviteSearch[k]||""}
+                  onChange={e=>setInviteSearch(p=>({...p,[k]:e.target.value}))}
+                  placeholder="Search staff by name or email…" />
+                <div style={{maxHeight:218,overflowY:"auto",marginTop:8}}>
+                  {knownColleagues.filter(p=>(p.name+" "+p.email).toLowerCase().includes((inviteSearch[k]||"").toLowerCase())).map(p=>
+                    <label key={p.email} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 4px",borderBottom:`1px solid ${T.line}`,cursor:"pointer"}}>
+                      <input type="checkbox" checked={(s.invitees||[]).includes(p.email)}
+                        onChange={()=>toggleInvitee(k,p.email)} style={{accentColor:T.red}} />
+                      <span style={{fontSize:13,color:T.ink}}>{p.name}</span>
+                    </label>
+                  )}
+                  {knownColleagues.length===0 && <p style={{fontSize:12,color:T.muted}}>No colleagues with verified email addresses are available yet.</p>}
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:9}}>
+                  <span style={{fontSize:11,color:T.muted}}>{(s.invitees||[]).length} selected</span>
+                  <button style={{...btnGhost,padding:"5px 11px"}} onClick={()=>setInviteExpanded(p=>({...p,[k]:false}))}>Done</button>
+                </div>
+                <div style={{borderTop:`1px solid ${T.line}`,marginTop:11,paddingTop:9}}>
+                  <button type="button" onClick={()=>setInviteManual(p=>({...p,[k]:!p[k]}))}
+                    style={{border:"none",background:"transparent",color:T.red,fontFamily:FONT,fontSize:12,cursor:"pointer",padding:0}}>
+                    {inviteManual[k] ? "Hide manual entry" : "Can't find a colleague? Add their IST email"}
+                  </button>
+                  {inviteManual[k] && <div style={{display:"flex",gap:7,marginTop:8}}>
+                    <input style={{...input,flex:1,minWidth:0}} type="email" placeholder="name@istianjin.org.cn"
+                      value={inviteDrafts[k]||""} onChange={e=>setInviteDrafts(p=>({...p,[k]:e.target.value}))}
+                      onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();addInvitee(k);}}}/>
+                    <button type="button" style={btnGhost} onClick={()=>addInvitee(k)}>Add</button>
+                  </div>}
+                </div>
+              </div>}
+              {(s.invitees||[]).length>0 && <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:9}}>
+                {s.invitees.map(email=><button type="button" key={email} title="Remove invitee"
+                  style={{...btnGhost,padding:"5px 9px",fontSize:11}} onClick={()=>toggleInvitee(k,email)}>
+                  {knownContacts.get(email)?.name || email} ×
+                </button>)}
               </div>}
             </div>
 
