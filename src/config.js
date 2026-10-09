@@ -3,17 +3,17 @@
    Everything that changes year to year lives here.
    ─────────────────────────────────────────────────────────────── */
 
-export const WINDOW_LABEL = "19 October – 6 November 2026";
+export const WINDOW_LABEL = "10/19/2026 – 11/06/2026";
 
 export const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 export const SHORT_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
 export const WEEKS = [
-  { label: "B Week", sublabel: "19–23 October",
+  { label: "B Week", sublabel: "10/19/2026 – 10/23/2026",
     dates: ["2026-10-19","2026-10-20","2026-10-21","2026-10-22","2026-10-23"] },
-  { label: "A Week", sublabel: "26–30 October",
+  { label: "A Week", sublabel: "10/26/2026 – 10/30/2026",
     dates: ["2026-10-26","2026-10-27","2026-10-28","2026-10-29","2026-10-30"] },
-  { label: "B Week", sublabel: "2–6 November",
+  { label: "B Week", sublabel: "11/02/2026 – 11/06/2026",
     dates: ["2026-11-02","2026-11-03","2026-11-04","2026-11-05","2026-11-06"] }
 ];
 
@@ -222,13 +222,13 @@ export function colorFor(name) {
 
 export function fmtDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
 }
 
 export function fmtLong(iso) {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
-    weekday: "long", day: "numeric", month: "long"
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    weekday: "long", month: "2-digit", day: "2-digit", year: "numeric"
   });
 }
 
