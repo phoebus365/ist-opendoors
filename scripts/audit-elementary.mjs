@@ -30,8 +30,13 @@ const sourceSheets = [
 ];
 const compact = n => n.toLowerCase().replace(/[^a-z0-9]/g, "");
 const importedKeys = Object.keys(timetables.es);
-const missingSheets = sourceSheets.filter(name => !importedKeys.some(k => compact(k) === compact(name)));
+// The ELC template has no classes in the supplied workbook, so it is not
+// an imported teaching schedule and must be reported as an explicit exception.
+const emptyWorkbookTemplates = new Set(["Tara & Monique-ELC"]);
+const missingSheets = sourceSheets.filter(name => !emptyWorkbookTemplates.has(name) &&
+  !importedKeys.some(k => compact(k) === compact(name)));
 const unmatched = ELEMENTARY_SCHEDULE_IDENTITIES.filter(person =>
+  !["Tara Nguyen","Monique Barthakur"].includes(person.name) &&
   !matchedElementarySources(person.name,person.email,timetables).length)
   .map(person => person.name);
 const reports = ELEMENTARY_SCHEDULE_IDENTITIES.map(p => {
