@@ -8,7 +8,7 @@ import {
   FOCUS_PEDAGOGY, FOCUS_GENERAL, ALL_FOCUS, CANCEL_REASONS,
   OBSERVABLE_STANDARDS,
   T, FONT, colorFor, fmtDate, fmtLong, isToday, locate,
-  periodsFor, periodLabel, scheduledClassFor, matchedSecondaryTeacher
+  periodsFor, periodLabel, scheduledClassFor, hasSecondaryLessons
 } from "./config";
 
 /* ═══════════════════════════════════════════════ shared bits */
@@ -602,7 +602,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
   const SUBJECTS = division === "Elementary" ? SUBJECTS_ES : SUBJECTS_SEC;
   const GRADES = division === "Elementary" ? GRADES_ES : GRADES_SEC;
   const keys = Object.keys(picked);
-  const hasSecondaryTimetable = !!matchedSecondaryTeacher(myName, myEmail, timetables);
+  const hasSecondaryTimetable = hasSecondaryLessons(myName, myEmail, timetables);
   const manualSecondary = division === "Secondary" && timetableStatus !== "loading" && !hasSecondaryTimetable;
 
   function normalizeScheduledGrade(raw = "") {
