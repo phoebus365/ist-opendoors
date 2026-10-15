@@ -8,7 +8,7 @@ import {
   FOCUS_PEDAGOGY, FOCUS_GENERAL, ALL_FOCUS, CANCEL_REASONS,
   OBSERVABLE_STANDARDS,
   T, FONT, colorFor, fmtDate, fmtLong, isToday, locate,
-  periodsFor, periodLabel, scheduledClassFor
+  periodsFor, periodLabel, scheduledClassFor, matchedSecondaryTeacher
 } from "./config";
 
 /* ═══════════════════════════════════════════════ shared bits */
@@ -75,6 +75,7 @@ export default function App() {
   const [visits, setVisits] = useState([]);
   const [walkins, setWalkins] = useState([]);
   const [timetables, setTimetables] = useState({sec:{},es:{}});
+  const [timetableStatus, setTimetableStatus] = useState("loading");
   const [facultyDirectory, setFacultyDirectory] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [err, setErr] = useState(null);
@@ -88,7 +89,15 @@ export default function App() {
     me?.user_metadata?.name ||
     (myEmail ? myEmail.split("@")[0].replace(/[._]/g, " ") : "");
 
-  useEffect(() => { loadTimetables().then(setTimetables).catch(e => console.error("Timetable data error",e)); }, []);
+  useEffect(() => {
+    loadTimetables().then(data => {
+      setTimetables(data);
+      setTimetableStatus("ready");
+    }).catch(e => {
+      console.error("Timetable data error", e);
+      setTimetableStatus("error");
+    });
+  }, []);
   useEffect(() => {
     if (!session) { setFacultyDirectory([]); return; }
     supabase.from("opendoors_directory").select("name,email,division").order("name")
@@ -197,6 +206,7 @@ export default function App() {
   if (mode === "open") return shell(
     <OpenFlow
       facultyDirectory={facultyDirectory}
+      timetables={timetables} timetableStatus={timetableStatus}
       division={division} setDivision={setDivision}
       entries={entries} setEntries={setEntries} visits={visits} setVisits={setVisits}
       myEmail={myEmail} myName={myName}
@@ -578,7 +588,7 @@ function Chooser({ setMode, myName, mine, myVisits, entries }) {
 
 const BLANK_SLOT = { subject: "", grade: "", room: "", focus: [], standards: [], note: "", manualSubject: false };
 
-function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisits, facultyDirectory, myEmail, myName, setErr, say, setMode }) {
+function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisits, facultyDirectory, timetables, timetableStatus, myEmail, myName, setErr, say, setMode }) {
   const [picked, setPicked] = useState({});   // "date|periodKey" -> slot data
   const [step, setStep] = useState("pick");   // pick | detail
   const [busy, setBusy] = useState(false);
@@ -592,6 +602,8 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
   const SUBJECTS = division === "Elementary" ? SUBJECTS_ES : SUBJECTS_SEC;
   const GRADES = division === "Elementary" ? GRADES_ES : GRADES_SEC;
   const keys = Object.keys(picked);
+  const hasSecondaryTimetable = !!matchedSecondaryTeacher(myName, myEmail, timetables);
+  const manualSecondary = division === "Secondary" && timetableStatus !== "loading" && !hasSecondaryTimetable;
 
   function normalizeScheduledGrade(raw = "") {
     const s = String(raw).trim();
@@ -602,8 +614,8 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
 
   function toggle(date, pk) {
     const k = `${date}|${pk}`;
-    const scheduled = division === "Secondary" ? scheduledClassFor(myName, date, pk) : null;
-    if (division === "Secondary" && !scheduled) return;
+    const scheduled = division === "Secondary" ? scheduledClassFor(myName, date, pk, timetables, myEmail) : null;
+    if (division === "Secondary" && !scheduled && !manualSecondary) return;
     setPicked(p => {
       const n = { ...p };
       if (n[k]) delete n[k];
@@ -981,13 +993,25 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
 
       {editModal}
       <DivisionTabs division={division} onChange={switchDivision} />
+      {division === "Secondary" && timetableStatus === "loading" && (
+        <p role="status" style={{fontSize:13,color:T.text2}}>Loading your timetable…</p>
+      )}
+      {manualSecondary && (
+        <p role="status" style={{fontSize:13,color:T.text2,padding:"10px 14px",border:`1px solid ${T.line}`,borderRadius:6}}>
+          {timetableStatus === "error"
+            ? "Your timetable could not be loaded. You can still choose a period and enter the class information manually."
+            : "No individual secondary timetable matched your school account. You can still choose a period and enter its class information manually."}
+        </p>
+      )}
 
       {WEEKS.map((w, i) => (
         <PickGrid
           key={i} week={w} division={division} periods={PERIODS}
           picked={picked} toggle={toggle}
           counts={minePerSlot} mineOwn={mineOwn}
-          myName={myName} onManage={setEditing}
+          myName={myName} myEmail={myEmail} timetables={timetables}
+          timetableStatus={timetableStatus} hasSecondaryTimetable={hasSecondaryTimetable}
+          onManage={setEditing}
           ownEntries={entries.filter(e => e.host_email.toLowerCase() === myEmail && e.division === division)}
         />
       ))}
@@ -1036,7 +1060,7 @@ function DivisionTabs({ division, onChange }) {
   );
 }
 
-function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, myName, onManage, ownEntries }) {
+function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, myName, myEmail, timetables, timetableStatus, hasSecondaryTimetable, onManage, ownEntries }) {
   return (
     <div style={{ marginBottom: 38 }}>
       <WeekHeading week={week} />
@@ -1053,8 +1077,9 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                   const already = mineOwn.has(k);
                   const ownEntry = ownEntries.find(e => e.date_str === d && e.period_key === p.key);
                   const n = counts[k] || 0;
-                  const scheduled = division === "Secondary" ? scheduledClassFor(myName, d, p.key) : null;
-                  const available = division !== "Secondary" || !!scheduled;
+                  const scheduled = division === "Secondary" ? scheduledClassFor(myName, d, p.key, timetables, myEmail) : null;
+                  const available = division !== "Secondary" || !!scheduled ||
+                    (timetableStatus !== "loading" && !hasSecondaryTimetable);
                   return (
                     <td key={d}
                       onClick={() => ownEntry ? onManage({...ownEntry}) : available && !already && toggle(d, p.key)}
