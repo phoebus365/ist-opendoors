@@ -48,5 +48,20 @@ assert.equal(scheduledClassFor("Zhai Hao","2026-10-21","B12",data,"Hao_Zhai@isti
   "MYP Design", "Hao Zhai's B-week class did not load");
 assert.equal(hasSecondaryLessons("Hao Zhai","Hao_Zhai@istianjin.org.cn",data),true);
 assert.equal(hasSecondaryLessons("Tara Nguyen","Tara_Nguyen@istianjin.org.cn",data),false);
+// School-directory identities with Microsoft profile/email aliases must resolve
+// to the same imported teaching records as their timetable names.
+for (const [profileName, verifiedEmail, timetableName] of [
+  ["Ben Silvis", "ben_silvis@istianjin.org.cn", "Gerben Silvis"],
+  ["Ambika Balakrishna", "ambika_gb@istianjin.org.cn", "Ambika Balakrishna"],
+  ["Eva Fu", "eva_fu@istianjin.org.cn", "Fu Ping"],
+  ["Geoffrey Diegel", "geoffrey_diegel@istianjin.org.cn", "Geoff Diegel"],
+  ["Hyun Ae Kim", "hyun_ae_kim@istianjin.org.cn", "Sheila Kim"],
+  ["Jeffrey Errington", "jeffrey_errington@istianjin.org.cn", "Jeff Errington"],
+  ["Madeleine Haines", "madeleine_haines@istianjin.org.cn", "Maddy Haines"],
+  ["Muriel Charpentier", "muriel_charpentier@istianjin.org.cn", "Muriel King"]
+]) {
+  assert.equal(matchedSecondaryTeacher(profileName, verifiedEmail, data), timetableName,
+    `The verified login ${verifiedEmail} could not access ${timetableName}'s timetable`);
+}
 const empty = expectedSecondary.filter(name=>!hasSecondaryLessons(name,"",data));
 console.log(`Verified ${expectedSecondary.length} secondary timetable identities, ${expectedSecondary.length-empty.length} with selectable classes. No-class records: ${empty.join(", ")||"none"}.`);
