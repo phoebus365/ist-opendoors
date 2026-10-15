@@ -6,7 +6,7 @@
   "description": "Open Doors — classroom visit calendar, International School of Tianjin",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/audit-timetables.mjs && vite build",
+    "build": "node scripts/audit-timetables.mjs && node scripts/check-ben-pe.mjs && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
