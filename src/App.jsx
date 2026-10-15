@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, notify } from "./supabase";
 import { PREVIEW } from "./preview";
 import { loadTimetables } from "./timetable-data";
@@ -9,7 +9,7 @@ import {
   OBSERVABLE_STANDARDS,
   T, FONT, colorFor, fmtDate, fmtLong, isToday, locate,
   periodsFor, periodLabel, scheduledClassFor, hasSecondaryLessons,
-  scheduledElementaryClassFor, hasElementaryLessons
+  scheduledElementaryClassFor, hasElementaryLessons, ELEMENTARY_SCHEDULE_IDENTITIES
 } from "./config";
 
 /* ═══════════════════════════════════════════════ shared bits */
@@ -72,6 +72,8 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [mode, setMode] = useState(null);          // null | "open" | "visit"
   const [division, setDivision] = useState("Secondary");
+  const divisionChosen = useRef(false);
+  const changeDivision = d => { divisionChosen.current = true; setDivision(d); };
   const [entries, setEntries] = useState([]);
   const [visits, setVisits] = useState([]);
   const [walkins, setWalkins] = useState([]);
@@ -104,7 +106,14 @@ export default function App() {
     supabase.from("opendoors_directory").select("name,email,division").order("name")
       .then(({data,error}) => {
         if (error) console.warn("Faculty directory unavailable",error.message);
-        else setFacultyDirectory(data || []);
+        else {
+          const list = data || [];
+          setFacultyDirectory(list);
+          if (!divisionChosen.current) {
+            const meInDirectory = list.find(p => String(p.email || "").trim().toLowerCase() === myEmail);
+            if (["Elementary","Secondary"].includes(meInDirectory?.division)) setDivision(meInDirectory.division);
+          }
+        }
       });
   }, [session]);
 
@@ -129,6 +138,8 @@ export default function App() {
 
   async function signOut() {
     await supabase.auth.signOut();
+    divisionChosen.current = false;
+    setDivision("Secondary");
     setEntries([]); setVisits([]); setWalkins([]); setLoaded(false); setMode(null);
   }
 
@@ -202,13 +213,16 @@ export default function App() {
 
   if (mode === "record") return shell(<RecordVisit entries={entries} visits={visits} walkins={walkins} setWalkins={setWalkins} timetables={timetables} myEmail={myEmail} myName={myName} setErr={setErr} say={say} />);
 
-  if (mode === "admin" && isAdmin) return shell(<AdminDashboard entries={entries} visits={visits} walkins={walkins} />);
+  if (mode === "admin" && isAdmin) return shell(<AdminDashboard
+    entries={entries} visits={visits} walkins={walkins} facultyDirectory={facultyDirectory}
+    timetables={timetables} timetableStatus={timetableStatus}
+    myEmail={myEmail} myName={myName} />);
 
   if (mode === "open") return shell(
     <OpenFlow
       facultyDirectory={facultyDirectory}
       timetables={timetables} timetableStatus={timetableStatus}
-      division={division} setDivision={setDivision}
+      division={division} setDivision={changeDivision}
       entries={entries} setEntries={setEntries} visits={visits} setVisits={setVisits}
       myEmail={myEmail} myName={myName}
       setErr={setErr} say={say} setMode={setMode}
@@ -217,7 +231,7 @@ export default function App() {
 
   return shell(
     <VisitFlow
-      division={division} setDivision={setDivision}
+      division={division} setDivision={changeDivision}
       entries={entries} visits={visits} setVisits={setVisits} walkins={walkins} setWalkins={setWalkins}
       myEmail={myEmail} myName={myName}
       setErr={setErr} say={say}
@@ -331,7 +345,8 @@ function RecordVisit({ entries, visits, walkins, setWalkins, timetables, myEmail
   </main>;
 }
 
-function AdminDashboard({ entries, visits, walkins }) {
+function AdminDashboard({ entries, visits, walkins, facultyDirectory, timetables, timetableStatus, myEmail, myName }) {
+  const [adminView, setAdminView] = useState("overview");
   const [division, setDivision] = useState("All School");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState("");
@@ -365,6 +380,17 @@ function AdminDashboard({ entries, visits, walkins }) {
   const rows = [...people.values()].filter(p => (p.name + p.email).toLowerCase().includes(search.toLowerCase())).sort((a,b) => a.name.localeCompare(b.name));
   return <main style={{ maxWidth: 1180, margin: "0 auto", padding: "32px 24px" }}>
     <h2 style={{ fontSize: 24, marginBottom: 8 }}>Open Doors · Admin dashboard</h2>
+    <div style={{display:"flex",gap:8,margin:"16px 0 22px"}}>
+      {([["overview","Visit statistics"],["teacher","Preview a teacher"]]).map(([key,label]) => (
+        <button key={key} onClick={()=>setAdminView(key)}
+          style={{...btnGhost,background:adminView===key?T.red:"#fff",
+            color:adminView===key?"#fff":T.ink}}>{label}</button>
+      ))}
+    </div>
+    {adminView === "teacher" ? (
+      <AdminTeacherPreview facultyDirectory={facultyDirectory} timetables={timetables}
+        timetableStatus={timetableStatus} entries={entries} myEmail={myEmail} myName={myName} />
+    ) : (<>
     <p style={{ color: T.muted, fontSize: 13 }}>Bookings count toward the two-visit target; attendance is not verified.</p>
     <div style={{ display: "flex", gap: 8, margin: "20px 0" }}>
       {["All School","Elementary","Secondary"].map(d => <button key={d} onClick={() => setDivision(d)} style={{ ...btnGhost, background: division === d ? T.red : "#fff", color: division === d ? "#fff" : T.text }}>{d}</button>)}
@@ -388,7 +414,118 @@ function AdminDashboard({ entries, visits, walkins }) {
       </table>
     </div>
     <p style={{fontSize:12,color:T.muted}}>Only teachers with an open class or an active booking appear until a full staff roster is loaded.</p>
+    </>)}
   </main>;
+}
+
+
+/* Read-only admin preview uses the same timetable lookup and PickGrid as the
+   teacher-facing screen; it never signs in as or writes on behalf of others. */
+function AdminTeacherPreview({ facultyDirectory, timetables, timetableStatus, entries, myEmail, myName }) {
+  const [teacherKey, setTeacherKey] = useState("");
+  const [filter, setFilter] = useState("");
+  const [overrideDivision, setOverrideDivision] = useState("");
+  const people = new Map();
+  for (const p of facultyDirectory) {
+    const email = String(p.email || "").trim().toLowerCase();
+    if (email) people.set(email,{
+      key:email,name:p.name||email,email,
+      division:p.division==="Elementary"?"Elementary":"Secondary"
+    });
+  }
+  for (const p of ELEMENTARY_SCHEDULE_IDENTITIES) {
+    if (!p.email) continue;
+    const email = p.email.toLowerCase();
+    if (!people.has(email)) people.set(email,{
+      key:email,name:p.name,email,division:"Elementary"
+    });
+  }
+  for (const name of Object.keys(timetables.sec || {})) {
+    const normalized = x => String(x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+    if ([...people.values()].some(p=>normalized(p.name)===normalized(name))) continue;
+    const key="source:"+name;
+    people.set(key,{key,name,email:"",division:"Secondary"});
+  }
+  const roster = [...people.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  const selected = roster.find(p=>p.key===teacherKey);
+  const options = roster.filter(p=>!filter ||
+    (p.name+" "+p.email).toLowerCase().includes(filter.toLowerCase()) || p.key===teacherKey);
+  const division = overrideDivision || selected?.division || "Secondary";
+  const ownEntries = selected ? entries.filter(e=>selected.email &&
+    String(e.host_email||"").toLowerCase()===selected.email && e.division===division) : [];
+  const mineOwn = new Set(ownEntries.map(e=>e.date_str+"|"+e.period_key));
+  const hasTimetable = !!selected && (division==="Elementary"
+    ? hasElementaryLessons(selected.name,selected.email,timetables)
+    : hasSecondaryLessons(selected.name,selected.email,timetables));
+  const lessons = selected && timetableStatus==="ready"
+    ? WEEKS.flatMap(w=>w.dates.flatMap(date=>periodsFor(division).filter(p=>
+        division==="Elementary"
+          ? scheduledElementaryClassFor(selected.name,date,p.key,timetables,selected.email)
+          : scheduledClassFor(selected.name,date,p.key,timetables,selected.email)
+      ))) : [];
+
+  return <section aria-label="Read-only teacher timetable preview">
+    <p style={{fontSize:13,color:T.text2,margin:"0 0 16px",lineHeight:1.6}}>
+      Choose a colleague to inspect their classroom-opening calendar. Preview is read-only:
+      your own Microsoft login stays active, and no classes or visits can be changed.
+    </p>
+    <div style={{padding:16,background:"#fff",border:`1px solid ${T.line}`,borderRadius:T.radius,
+      display:"flex",flexWrap:"wrap",gap:12,alignItems:"end",marginBottom:20}}>
+      <label style={{flex:"1 1 190px"}}>
+        <span style={lbl}>Find teacher</span>
+        <input aria-label="Filter teachers" style={input} value={filter}
+          onChange={e=>setFilter(e.target.value)} placeholder="Name or school email…" />
+      </label>
+      <label style={{flex:"2 1 260px"}}>
+        <span style={lbl}>Teacher to preview</span>
+        <select aria-label="Select teacher to preview" style={input} value={teacherKey}
+          onChange={e=>{setTeacherKey(e.target.value);setOverrideDivision("");setFilter("");}}>
+          <option value="">Select a teacher…</option>
+          {options.map(p=><option key={p.key} value={p.key}>
+            {p.name} · {p.division}
+          </option>)}
+        </select>
+      </label>
+      <button type="button" style={btnGhost} onClick={()=>{
+        setTeacherKey(roster.find(p=>p.email===myEmail)?.key||"");
+        setFilter("");setOverrideDivision("");
+      }}>My timetable</button>
+    </div>
+    {selected && <>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+        gap:10,flexWrap:"wrap",marginBottom:16}}>
+        <div>
+          <h3 style={{fontSize:20,margin:"0 0 5px",color:T.ink}}>{selected.name}</h3>
+          <span style={{fontSize:12,color:T.text2}}>
+            {selected.email || "Timetable-only entry"} · {lessons.length} scheduled cells
+            · {ownEntries.length} classes opened
+          </span>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {["Elementary","Secondary"].map(d=><button key={d}
+            style={{...btnGhost,background:d===division?T.ink:"#fff",
+              color:d===division?"#fff":T.ink}}
+            onClick={()=>setOverrideDivision(d)}>{d}</button>)}
+        </div>
+      </div>
+      {timetableStatus==="loading" && <p role="status">Loading timetable data…</p>}
+      {timetableStatus==="error" && <p role="alert">Timetable data failed to load.</p>}
+      {timetableStatus==="ready" && !hasTimetable && (
+        <p role="status" style={{background:"#fff",border:`1px solid ${T.line}`,
+          borderRadius:8,padding:14,fontSize:13,color:T.text2}}>
+          No individual {division.toLowerCase()} timetable is matched to this account.
+          The teacher's calendar allows manual class entry instead of showing preset classes.
+        </p>
+      )}
+      {WEEKS.map((w,i)=><PickGrid key={i} week={w} division={division}
+        periods={periodsFor(division)} picked={{}} toggle={()=>{}} counts={{}}
+        mineOwn={mineOwn} myName={selected.name} myEmail={selected.email}
+        timetables={timetables} timetableStatus={timetableStatus}
+        hasSecondaryTimetable={division==="Secondary"&&hasTimetable}
+        hasElementaryTimetable={division==="Elementary"&&hasTimetable}
+        ownEntries={ownEntries} onManage={()=>{}} readOnly />)}
+    </>}
+  </section>;
 }
 
 /* ═══════════════════════════════════════════════ sign-in */
@@ -1076,7 +1213,7 @@ function DivisionTabs({ division, onChange }) {
   );
 }
 
-function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, myName, myEmail, timetables, timetableStatus, hasSecondaryTimetable, hasElementaryTimetable, onManage, ownEntries }) {
+function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, myName, myEmail, timetables, timetableStatus, hasSecondaryTimetable, hasElementaryTimetable, onManage, ownEntries, readOnly = false }) {
   return (
     <div style={{ marginBottom: 38 }}>
       <WeekHeading week={week} />
@@ -1100,19 +1237,19 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                   const available = !!scheduled || (timetableStatus !== "loading" && !hasTimetable);
                   return (
                     <td key={d}
-                      onClick={() => ownEntry ? onManage({...ownEntry}) : available && !already && toggle(d, p.key)}
+                      onClick={readOnly ? undefined : () => ownEntry ? onManage({...ownEntry}) : available && !already && toggle(d, p.key)}
                       title={already ? "You've already opened this class" : scheduled ? `${scheduled.subject} · ${scheduled.grade}` : ""}
                       style={{
                         padding: 0, verticalAlign: "middle", height: 66,
                         borderBottom: pi < periods.length - 1 ? `1px solid ${T.line}` : "none",
                         borderRight: i < week.dates.length - 1 ? `1px solid ${T.line}` : "none",
                         background: on ? T.red : already ? "#e4f3e8" : available && isToday(d) ? T.today : available ? "#fff" : "#f0efed",
-                        cursor: ownEntry || available && !already ? "pointer" : "default",
+                        cursor: !readOnly && (ownEntry || available && !already) ? "pointer" : "default",
                         transition: "background .1s", textAlign: "center"
                       }}
-                      onMouseEnter={e => { if (available && !on && !already) e.currentTarget.style.background = T.redBg; }}
+                      onMouseEnter={e => { if (!readOnly && available && !on && !already) e.currentTarget.style.background = T.redBg; }}
                       onMouseLeave={e => {
-                        if (available && !on && !already) e.currentTarget.style.background = isToday(d) ? T.today : "#fff";
+                        if (!readOnly && available && !on && !already) e.currentTarget.style.background = isToday(d) ? T.today : "#fff";
                       }}>
                       {on && scheduled && (
                         <div style={{ color: "#fff", padding: "6px 8px", lineHeight: 1.25 }}>
@@ -1121,7 +1258,7 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                         </div>
                       )}
                       {!on && already && (
-                        <span style={{ color: "#267444", fontSize: 11, fontWeight:800 }}>Open · Manage</span>
+                        <span style={{ color: "#267444", fontSize: 11, fontWeight:800 }}>{readOnly ? "Already open" : "Open · Manage"}</span>
                       )}
                       {!on && !already && scheduled && (
                         <div style={{ padding: "6px 8px", lineHeight: 1.25 }}>
