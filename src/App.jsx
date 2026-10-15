@@ -8,7 +8,8 @@ import {
   FOCUS_PEDAGOGY, FOCUS_GENERAL, ALL_FOCUS, CANCEL_REASONS,
   OBSERVABLE_STANDARDS,
   T, FONT, colorFor, fmtDate, fmtLong, isToday, locate,
-  periodsFor, periodLabel, scheduledClassFor, hasSecondaryLessons
+  periodsFor, periodLabel, scheduledClassFor, hasSecondaryLessons,
+  scheduledElementaryClassFor, hasElementaryLessons
 } from "./config";
 
 /* ═══════════════════════════════════════════════ shared bits */
@@ -603,19 +604,25 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
   const GRADES = division === "Elementary" ? GRADES_ES : GRADES_SEC;
   const keys = Object.keys(picked);
   const hasSecondaryTimetable = hasSecondaryLessons(myName, myEmail, timetables);
+  const hasElementaryTimetable = hasElementaryLessons(myName, myEmail, timetables);
   const manualSecondary = division === "Secondary" && timetableStatus !== "loading" && !hasSecondaryTimetable;
+  const manualElementary = division === "Elementary" && timetableStatus !== "loading" && !hasElementaryTimetable;
+  const manualDivision = manualSecondary || manualElementary;
 
   function normalizeScheduledGrade(raw = "") {
     const s = String(raw).trim();
     if (/^Grade\s+\d+/i.test(s)) return s.match(/^Grade\s+\d+/i)[0].replace(/^grade/i, "Grade");
+    if (/^(Mixed|Staff|Nursery|Pre-K|Kindergarten)$/i.test(s)) return s;
     const m = s.match(/\d+/);
     return m ? `Grade ${m[0]}` : GRADES[0];
   }
 
   function toggle(date, pk) {
     const k = `${date}|${pk}`;
-    const scheduled = division === "Secondary" ? scheduledClassFor(myName, date, pk, timetables, myEmail) : null;
-    if (division === "Secondary" && !scheduled && !manualSecondary) return;
+    const scheduled = division === "Secondary"
+      ? scheduledClassFor(myName, date, pk, timetables, myEmail)
+      : scheduledElementaryClassFor(myName, date, pk, timetables, myEmail);
+    if (!scheduled && !manualDivision) return;
     setPicked(p => {
       const n = { ...p };
       if (n[k]) delete n[k];
@@ -993,7 +1000,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
 
       {editModal}
       <DivisionTabs division={division} onChange={switchDivision} />
-      {division === "Secondary" && timetableStatus === "loading" && (
+      {timetableStatus === "loading" && (
         <p role="status" style={{fontSize:13,color:T.text2}}>Loading your timetable…</p>
       )}
       {manualSecondary && (
@@ -1004,6 +1011,14 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
         </p>
       )}
 
+      {manualElementary && (
+        <p role="status" style={{fontSize:13,color:T.text2,padding:"10px 14px",border:`1px solid ${T.line}`,borderRadius:6}}>
+          {timetableStatus === "error"
+            ? "Your timetable could not be loaded. You can still enter a class manually."
+            : "Your individual Elementary lessons could not be identified from the timetable. You can enter your own class details manually."}
+        </p>
+      )}
+
       {WEEKS.map((w, i) => (
         <PickGrid
           key={i} week={w} division={division} periods={PERIODS}
@@ -1011,6 +1026,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
           counts={minePerSlot} mineOwn={mineOwn}
           myName={myName} myEmail={myEmail} timetables={timetables}
           timetableStatus={timetableStatus} hasSecondaryTimetable={hasSecondaryTimetable}
+          hasElementaryTimetable={hasElementaryTimetable}
           onManage={setEditing}
           ownEntries={entries.filter(e => e.host_email.toLowerCase() === myEmail && e.division === division)}
         />
@@ -1060,7 +1076,7 @@ function DivisionTabs({ division, onChange }) {
   );
 }
 
-function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, myName, myEmail, timetables, timetableStatus, hasSecondaryTimetable, onManage, ownEntries }) {
+function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, myName, myEmail, timetables, timetableStatus, hasSecondaryTimetable, hasElementaryTimetable, onManage, ownEntries }) {
   return (
     <div style={{ marginBottom: 38 }}>
       <WeekHeading week={week} />
@@ -1077,9 +1093,11 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                   const already = mineOwn.has(k);
                   const ownEntry = ownEntries.find(e => e.date_str === d && e.period_key === p.key);
                   const n = counts[k] || 0;
-                  const scheduled = division === "Secondary" ? scheduledClassFor(myName, d, p.key, timetables, myEmail) : null;
-                  const available = division !== "Secondary" || !!scheduled ||
-                    (timetableStatus !== "loading" && !hasSecondaryTimetable);
+                  const scheduled = division === "Secondary"
+                    ? scheduledClassFor(myName, d, p.key, timetables, myEmail)
+                    : scheduledElementaryClassFor(myName, d, p.key, timetables, myEmail);
+                  const hasTimetable = division === "Secondary" ? hasSecondaryTimetable : hasElementaryTimetable;
+                  const available = !!scheduled || (timetableStatus !== "loading" && !hasTimetable);
                   return (
                     <td key={d}
                       onClick={() => ownEntry ? onManage({...ownEntry}) : available && !already && toggle(d, p.key)}
