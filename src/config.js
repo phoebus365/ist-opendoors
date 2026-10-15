@@ -320,3 +320,114 @@ export function scheduledClassFor(name, iso, periodKey, timetables = {}, email =
   const [subject, grade, room] = record;
   return { subject: String(subject), grade: String(grade || ""), room: String(room || "") };
 }
+
+
+/* Elementary P1–P8 timetable integration. Data is imported from IST's
+   2026–27 teacher workbook via src/elementary-timetable.js.
+   A/B weeks, cross-division specialists, and teacher names that differ
+   from their Microsoft profiles are handled explicitly.
+   A combined source sheet is never assumed to identify the instructor. */
+export const ELEMENTARY_SCHEDULE_IDENTITIES = [
+  { name: "Tara Nguyen", email: "tara_nguyen@istianjin.org.cn", sheets: ["Tara & Monique-ELC"] },
+  { name: "Monique Barthakur", email: "monique_barthakur@istianjin.org.cn", sheets: ["Tara & Monique-ELC"] },
+  { name: "Clare Murphy", email: "clare_craig@istianjin.org.cn", sheets: ["Clare-K"] },
+  { name: "Jo Reston", email: "jo_reston@istianjin.org.cn", sheets: ["Jo-G1"] },
+  { name: "Nadia Nel", email: "nadia_nel@istianjin.org.cn", sheets: ["Nadia-G1"] },
+  { name: "Christopher Lowrey", email: "chris_lowrey@istianjin.org.cn", sheets: ["Chris-G2A", "Chris-G2B"] },
+  { name: "Billy Brown", email: "billy_brown@istianjin.org.cn", sheets: ["Billy-G3"] },
+  { name: "Michael Crisp", email: "michael_crisp@istianjin.org.cn", sheets: ["Michael-G4"] },
+  { name: "Celeste Staal", email: "celeste_staal@istianjin.org.cn", sheets: ["Celeste-G4"] },
+  { name: "Nicole Barry", email: "nicole_barry@istianjin.org.cn", sheets: ["Nicole-G5"] },
+  { name: "Gemma Lowrey", email: "gemma_lowrey@istianjin.org.cn", sheets: ["Gemma-G5"] },
+  { name: "Sara Derwish", email: "sara_derwish@istianjin.org.cn", sheets: ["Sara-ELA"] },
+  { name: "Stefanie Bradley", email: "stefanie_bradley@istianjin.org.cn", sheets: ["Stef-ELA"] },
+  { name: "Toni Jarratt", email: "toni_jarratt@istianjin.org.cn", sheets: ["Toni-IN"] },
+  { name: "Isha Joshi", email: "isha_joshi@istianjin.org.cn", sheets: ["Isha-Art"] },
+  { name: "Victoria Lee", email: "victoria_lee@istianjin.org.cn", sheets: ["Victoria-MUSIC"] },
+  { name: "Islen Craig", email: "islen_craig@istianjin.org.cn", sheets: ["Islen-STEM"] },
+  { name: "Linnea Simon", email: "linnea_simon@istianjin.org.cn", sheets: ["Linnea-Library"] },
+  { name: "Ben Silvis", email: "ben_silvis@istianjin.org.cn", sheets: ["Ben-PSPE"] },
+  { name: "Wendy Bekkenk", email: "wendy_bekkenk@istianjin.org.cn", sheets: ["Wendy-PE"] },
+  { name: "Durian", email: "", sheets: ["Durian-PE"] },
+  { name: "Michael Tschoepel", email: "michael_tschoepel@istianjin.org.cn", sheets: ["Michael-German"] },
+  { name: "Esther Luppino", email: "esther_luppino@istianjin.org.cn", sheets: ["Esther-French"] },
+  { name: "Helen Wang", email: "helen_wang@istianjin.org.cn", sheets: ["Helen-Fu Ping-Jennifer-Chinese"], shared: true },
+  { name: "Fu Ping", email: "eva_fu@istianjin.org.cn", sheets: ["Helen-Fu Ping-Jennifer-Chinese"], shared: true },
+  { name: "Jennifer Liu", email: "jennifer_liu@istianjin.org.cn", sheets: ["Helen-Fu Ping-Jennifer-Chinese"], shared: true },
+  { name: "Mariana Suarez", email: "mariana_suarez@istianjin.org.cn", sheets: ["Mariana-PYPC"] }
+];
+
+export function matchedElementarySources(name, email = "", timetables = {}) {
+  const emailNorm = String(email || "").trim().toLowerCase();
+  const nameNorm = normTeacherName(name);
+  const registered = ELEMENTARY_SCHEDULE_IDENTITIES.find(p =>
+    (emailNorm && p.email === emailNorm) || (nameNorm && normTeacherName(p.name) === nameNorm));
+  const available = Object.keys(timetables.es || {});
+  const requested = registered?.sheets || [String(name || "")];
+  return requested.flatMap(key => {
+    const exact = available.find(existing => normTeacherName(existing) === normTeacherName(key));
+    return exact ? [exact] : [];
+  });
+}
+
+export function elementaryLabelsFor(name, email, iso, periodKey, timetables = {}) {
+  const { week, dayIndex } = locate(iso);
+  const period = Number(String(periodKey).slice(1));
+  if (!week || !/^P[1-8]$/.test(periodKey)) return [];
+  const letter = week.label.startsWith("A") ? "A" : "B";
+  const sources = matchedElementarySources(name, email, timetables);
+  const labels = [];
+  for (const source of sources) {
+    // The classroom teacher has two distinct sources, one for each week.
+    if (source === "Chris-G2A" && letter !== "A") continue;
+    if (source === "Chris-G2B" && letter !== "B") continue;
+    const t = timetables.es[source] || {};
+    const d = dayIndex + 1;
+    for (const key of [`${letter}${d}${period}`, `AB${d}${period}`]) {
+      for (const label of t[key] || []) {
+        const entry = String(label || "").trim();
+        if (!entry || /^(recess|lunch|prep|planning|free|duty|assembly|school finishes|check.?out only|meeting|home.?room)\b/i.test(entry)) continue;
+        if (/\b(meeting|duty|recess|lunch|school finishes)\b/i.test(entry)) continue;
+        if (!labels.includes(entry)) labels.push(entry);
+      }
+    }
+  }
+  return labels;
+}
+
+export function hasElementaryLessons(name, email = "", timetables = {}) {
+  const sources = matchedElementarySources(name, email, timetables);
+  if (!sources.length) return false;
+  // Shared sheets list lessons but cannot assign a given class to one of
+  // the named instructors. These staff must verify/enter their own class.
+  const registered = ELEMENTARY_SCHEDULE_IDENTITIES.find(p => p.email &&
+    String(email).toLowerCase() === p.email);
+  if (registered?.shared) return false;
+  for (const week of WEEKS) for (const day of week.dates) for (let p=1;p<=8;p++)
+    if (elementaryLabelsFor(name, email, day, `P${p}`, timetables).length) return true;
+  return false;
+}
+
+export function scheduledElementaryClassFor(name, iso, periodKey, timetables = {}, email = "") {
+  const registered = ELEMENTARY_SCHEDULE_IDENTITIES.find(p => p.email &&
+    String(email).toLowerCase() === p.email);
+  if (registered?.shared) return null;
+  const labels = elementaryLabelsFor(name, email, iso, periodKey, timetables);
+  if (!labels.length) return null;
+  const sources = matchedElementarySources(name, email, timetables);
+  const sourceName = sources[0] || "";
+  const gradeMatch = sourceName.match(/-G([1-5])\b/i) ||
+    labels.join(" ").match(/(?:Grade\s*|\bG)([1-5])\b/i);
+  const grade = gradeMatch ? gradeMatch[1] :
+    /-K\b|kinder|\bK[MDR]?\b/i.test(sourceName) ? "Kindergarten" :
+    /ELC/i.test(sourceName) ? "Nursery" : "Mixed";
+  const specialization = /-PSPE|-PE\b/i.test(sourceName) ? "PE" :
+    /-MUSIC/i.test(sourceName) ? "Music" :
+    /-Art/i.test(sourceName) ? "Art" :
+    /-Library/i.test(sourceName) ? "Library" :
+    /-STEM/i.test(sourceName) ? "STEM" :
+    /-French/i.test(sourceName) ? "French" :
+    /-German/i.test(sourceName) ? "German" : "";
+  const subject = specialization ? `${specialization}: ${labels.join(" / ")}` : labels.join(" / ");
+  return { subject, grade, room: "" };
+}
