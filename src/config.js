@@ -276,7 +276,24 @@ function normTeacherName(s = "") {
 
 /* Microsoft may use surname-first display names; the verified school email
    also provides a stable candidate, e.g. Hao_Zhai@istianjin.org.cn. */
+/* Identity aliases verified against the current Open Doors faculty directory.
+   Microsoft profile names can differ from names in the imported school timetable.
+   Do not guess email addresses from teacher names. */
+const VERIFIED_SECONDARY_EMAIL_ALIASES = {
+  "ambika_gb@istianjin.org.cn": "Ambika Balakrishna",
+  "ben_silvis@istianjin.org.cn": "Gerben Silvis",
+  "eva_fu@istianjin.org.cn": "Fu Ping",
+  "geoffrey_diegel@istianjin.org.cn": "Geoff Diegel",
+  "hyun_ae_kim@istianjin.org.cn": "Sheila Kim",
+  "jeffrey_errington@istianjin.org.cn": "Jeff Errington",
+  "madeleine_haines@istianjin.org.cn": "Maddy Haines",
+  "muriel_charpentier@istianjin.org.cn": "Muriel King"
+};
+
 export function matchedSecondaryTeacher(name, email = "", timetables = {}) {
+  const verifiedEmail = String(email).trim().toLowerCase();
+  const namedAlias = VERIFIED_SECONDARY_EMAIL_ALIASES[verifiedEmail];
+  if (namedAlias && Object.hasOwn(timetables.sec || {}, namedAlias)) return namedAlias;
   const fromEmail = String(email).split("@")[0].replace(/[._-]/g, " ");
   const wanted = [name, fromEmail].map(normTeacherName).filter(Boolean);
   if (!wanted.length) return null;
