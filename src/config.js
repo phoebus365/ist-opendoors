@@ -286,6 +286,12 @@ export function matchedSecondaryTeacher(name, email = "", timetables = {}) {
   }) || null;
 }
 
+export function hasSecondaryLessons(name, email = "", timetables = {}) {
+  const teacher = matchedSecondaryTeacher(name, email, timetables);
+  return !!teacher && Object.values(timetables.sec[teacher] || {})
+    .some(record => Array.isArray(record) && !!record[0]);
+}
+
 export function scheduledClassFor(name, iso, periodKey, timetables = {}, email = "") {
   const day = timetableDayForDate(iso);
   const slot = SEC_SLOTS[periodKey];
