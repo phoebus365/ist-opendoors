@@ -260,27 +260,9 @@ export function periodLabel(division, key) {
 
 /* Timetable-aware Open Doors selection.
    A week = Days 1–5; B week = Days 6–10. */
-export const SECONDARY_TIMETABLE = {
-  "Joe Schaaf": {
-    "1|B34": { subject: "English A SL", grade: "11", room: "201" },
-    "1|B56": { subject: "English A HL", grade: "12", room: "201" },
-    "1|B78": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" },
-    "3|B34": { subject: "English A SL", grade: "12", room: "201" },
-    "3|B56": { subject: "English A HL", grade: "11", room: "201" },
-    "4|B34": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" },
-    "5|B34": { subject: "English A SL", grade: "12", room: "201" },
-    "5|B78": { subject: "English A SL", grade: "11", room: "201" },
-    "6|B34": { subject: "English A HL", grade: "11", room: "201" },
-    "6|B56": { subject: "English A SL", grade: "12", room: "201" },
-    "7|B34": { subject: "English A HL", grade: "12", room: "201" },
-    "8|B12": { subject: "English A SL", grade: "11", room: "201" },
-    "8|B34": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" },
-    "9|B56": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" },
-    "9|B78": { subject: "English A SL", grade: "12", room: "201" },
-    "10|B12": { subject: "English A SL", grade: "11", room: "201" },
-    "10|B78": { subject: "MYP English", grade: "10N-1/10N-2", room: "201" }
-  }
-};
+/* Read every teacher's classes from the imported 2026–27 dataset.
+   The previous one-person table here blocked everyone except Joe Schaaf. */
+const SEC_SLOTS = { B12: "a", B34: "b", B56: "c", B78: "d" };
 
 export function timetableDayForDate(iso) {
   const { week, dayIndex } = locate(iso);
@@ -289,13 +271,29 @@ export function timetableDayForDate(iso) {
 }
 
 function normTeacherName(s = "") {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-export function scheduledClassFor(name, iso, periodKey) {
-  const wanted = normTeacherName(name);
-  const teacher = Object.keys(SECONDARY_TIMETABLE).find(n => normTeacherName(n) === wanted);
-  if (!teacher) return null;
+/* Microsoft may use surname-first display names; the verified school email
+   also provides a stable candidate, e.g. Hao_Zhai@istianjin.org.cn. */
+export function matchedSecondaryTeacher(name, email = "", timetables = {}) {
+  const fromEmail = String(email).split("@")[0].replace(/[._-]/g, " ");
+  const wanted = [name, fromEmail].map(normTeacherName).filter(Boolean);
+  if (!wanted.length) return null;
+  return Object.keys(timetables.sec || {}).find(teacher => {
+    const reversed = teacher.trim().split(/\s+/).reverse().join(" ");
+    return wanted.includes(normTeacherName(teacher)) || wanted.includes(normTeacherName(reversed));
+  }) || null;
+}
+
+export function scheduledClassFor(name, iso, periodKey, timetables = {}, email = "") {
   const day = timetableDayForDate(iso);
-  return SECONDARY_TIMETABLE[teacher][`${day}|${periodKey}`] || null;
+  const slot = SEC_SLOTS[periodKey];
+  if (day === null || !slot) return null;
+  const teacher = matchedSecondaryTeacher(name, email, timetables);
+  if (!teacher) return null;
+  const record = timetables.sec[teacher][`${day}${slot}`];
+  if (!Array.isArray(record) || !record[0]) return null;
+  const [subject, grade, room] = record;
+  return { subject: String(subject), grade: String(grade || ""), room: String(room || "") };
 }
