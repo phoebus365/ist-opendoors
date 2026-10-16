@@ -44,7 +44,9 @@ const checks=[
  [ben,benEmail,"2026-10-29","P3","PE: G1:SMAC"],
  [ben,benEmail,"2026-10-29","P5","PE: KM:SMAC"],
  [ben,benEmail,"2026-10-19","P3","PE: G1:SMAC"], // Day 6
- ["Durian","", "2026-10-26","P3","PE: G1:SMAC"], // Shared DW+GS
+ ["Dorian","", "2026-10-26","P3","PE: G1:SMAC"], // Shared DW+GS
+ ["Dorian Wang","", "2026-10-26","P3","PE: G1:SMAC"],
+ ["Durian","", "2026-10-26","P3","PE: G1:SMAC"], // Legacy name
  ["Durian","", "2026-10-26","P4","PE: ELC"],
  ["Durian","", "2026-10-27","P1","PE: 3B FIT"],
  ["Wendy Bekkenk","wendy_bekkenk@istianjin.org.cn",
