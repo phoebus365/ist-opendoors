@@ -348,7 +348,7 @@ export const ELEMENTARY_SCHEDULE_IDENTITIES = [
   { name: "Linnea Simon", email: "linnea_simon@istianjin.org.cn", sheets: ["Linnea-Library"] },
   { name: "Ben Silvis", email: "ben_silvis@istianjin.org.cn", sheets: ["Ben-PSPE"] },
   { name: "Wendy Bekkenk", email: "wendy_bekkenk@istianjin.org.cn", sheets: ["Wendy-PE"] },
-  { name: "Durian", email: "", sheets: ["Durian-PE"] },
+  { name: "Dorian", email: "", sheets: ["Durian-PE"] },
   { name: "Michael Tschoepel", email: "michael_tschoepel@istianjin.org.cn", sheets: ["Michael-German"] },
   { name: "Esther Luppino", email: "esther_luppino@istianjin.org.cn", sheets: ["Esther-French"] },
   { name: "Helen Wang", email: "helen_wang@istianjin.org.cn", sheets: ["Helen-Fu Ping-Jennifer-Chinese"], shared: true },
@@ -360,8 +360,13 @@ export const ELEMENTARY_SCHEDULE_IDENTITIES = [
 export function matchedElementarySources(name, email = "", timetables = {}) {
   const emailNorm = String(email || "").trim().toLowerCase();
   const nameNorm = normTeacherName(name);
+  // The PE master labels this teacher DW. The old imported source calls the
+  // sheet "Durian-PE", while the supplied master identifies DW as Dorian.
+  const PE_DW_NAMES = new Set(["dorian", "dorianwang", "durian", "durianwang"]);
   const registered = ELEMENTARY_SCHEDULE_IDENTITIES.find(p =>
-    (emailNorm && p.email === emailNorm) || (nameNorm && normTeacherName(p.name) === nameNorm));
+    (emailNorm && p.email === emailNorm) || (nameNorm &&
+      (normTeacherName(p.name) === nameNorm ||
+        (p.name === "Dorian" && PE_DW_NAMES.has(nameNorm)))));
   const available = Object.keys(timetables.es || {});
   const requested = registered?.sheets || [String(name || "")];
   return requested.flatMap(key => {
