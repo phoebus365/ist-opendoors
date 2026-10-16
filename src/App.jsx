@@ -434,10 +434,10 @@ function AdminTeacherPreview({ facultyDirectory, timetables, timetableStatus, en
     });
   }
   for (const p of ELEMENTARY_SCHEDULE_IDENTITIES) {
-    if (!p.email) continue;
-    const email = p.email.toLowerCase();
-    if (!people.has(email)) people.set(email,{
-      key:email,name:p.name,email,division:"Elementary"
+    const email = (p.email || "").toLowerCase();
+    const key = email || "elementary:"+p.name;
+    if (!people.has(key)) people.set(key,{
+      key,name:p.name,email,division:"Elementary"
     });
   }
   for (const name of Object.keys(timetables.sec || {})) {
