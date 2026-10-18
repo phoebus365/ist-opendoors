@@ -9,7 +9,7 @@ import {
   OBSERVABLE_STANDARDS,
   T, FONT, colorFor, fmtDate, fmtLong, isToday, locate,
   periodsFor, periodLabel, scheduledClassFor, hasSecondaryLessons,
-  scheduledElementaryClassFor, hasElementaryLessons, ELEMENTARY_SCHEDULE_IDENTITIES
+  scheduledElementaryClassFor, hasElementaryLessons, isUnverifiedElementaryWeek, ELEMENTARY_SCHEDULE_IDENTITIES
 } from "./config";
 
 /* ═══════════════════════════════════════════════ shared bits */
@@ -764,7 +764,9 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
     const scheduled = division === "Secondary"
       ? scheduledClassFor(myName, date, pk, timetables, myEmail)
       : scheduledElementaryClassFor(myName, date, pk, timetables, myEmail);
-    if (!scheduled && !manualDivision) return;
+    const unverifiedWeek = division === "Elementary" &&
+      isUnverifiedElementaryWeek(myEmail, date);
+    if (!scheduled && !manualDivision && !unverifiedWeek) return;
     setPicked(p => {
       const n = { ...p };
       if (n[k]) delete n[k];
@@ -1160,6 +1162,12 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
             : "Your individual Elementary lessons could not be identified from the timetable. You can enter your own class details manually."}
         </p>
       )}
+      {division === "Elementary" && isUnverifiedElementaryWeek(myEmail, "2026-10-19") && (
+        <p role="status" style={{fontSize:13,color:T.text2,padding:"10px 14px",border:`1px solid ${T.line}`,borderRadius:6}}>
+          Only your A-week timetable was supplied. Your A-week lessons appear automatically;
+          please enter B-week lessons manually. B-week classes have not been assumed or copied.
+        </p>
+      )}
 
       {WEEKS.map((w, i) => (
         <PickGrid
@@ -1239,7 +1247,9 @@ function PickGrid({ week, division, periods, picked, toggle, counts, mineOwn, my
                     ? scheduledClassFor(myName, d, p.key, timetables, myEmail)
                     : scheduledElementaryClassFor(myName, d, p.key, timetables, myEmail);
                   const hasTimetable = division === "Secondary" ? hasSecondaryTimetable : hasElementaryTimetable;
-                  const available = !!scheduled || (timetableStatus !== "loading" && !hasTimetable);
+                  const available = !!scheduled || (timetableStatus !== "loading" &&
+                    (!hasTimetable || (division === "Elementary" &&
+                      isUnverifiedElementaryWeek(myEmail, d))));
                   return (
                     <td key={d}
                       onClick={readOnly ? undefined : () => ownEntry ? onManage({...ownEntry}) : available && !already && toggle(d, p.key)}
