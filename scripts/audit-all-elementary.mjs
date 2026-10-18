@@ -12,6 +12,7 @@ import {
 } from "../src/config.js";
 import { EXTRA_SECONDARY_TIMETABLE } from "../src/secondary-timetable-extras.js";
 import { PE_ELEMENTARY_TIMETABLE, LILY_SECONDARY_PE_TIMETABLE } from "../src/pe-teacher-timetable.js";
+import { STAFF_SCREENSHOT_ELEMENTARY } from "../src/elementary-screenshot-schedules.js";
 
 const extract = (filename, variable) => {
   const source=readFileSync(filename,"utf8");
@@ -22,7 +23,7 @@ const extract = (filename, variable) => {
 const original=extract("src/timetable-data.js","ENCODED");
 const refined=extract("src/elementary-timetable.js","DATA");
 const data={
-  es:{...original.es,...refined,...PE_ELEMENTARY_TIMETABLE},
+  es:{...original.es,...refined,...PE_ELEMENTARY_TIMETABLE,...STAFF_SCREENSHOT_ELEMENTARY},
   sec:{...EXTRA_SECONDARY_TIMETABLE,...original.sec}
 };
 data.sec["Lily Yang"]={...data.sec["Lily Yang"],...LILY_SECONDARY_PE_TIMETABLE};
