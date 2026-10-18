@@ -224,9 +224,6 @@ export const STAFF_SCREENSHOT_ELEMENTARY = {
     "AB12": [
       "ELC shared: Circle Time / Learning Centres"
     ],
-    "AB13": [
-      "ELC shared: Music (B week)"
-    ],
     "AB15": [
       "ELC shared: Learning Centres / Music (A week)"
     ],
@@ -310,6 +307,9 @@ export const STAFF_SCREENSHOT_ELEMENTARY = {
     ],
     "AB58": [
       "ELC shared: Story Time / Music & Movement"
+    ],
+    "B13": [
+      "ELC shared: Music"
     ]
   },
   "Stef-ELA": {
