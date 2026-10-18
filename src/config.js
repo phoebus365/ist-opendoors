@@ -434,7 +434,7 @@ export function scheduledElementaryClassFor(name, iso, periodKey, timetables = {
   const sources = matchedElementarySources(name, email, timetables);
   const sourceName = sources[0] || "";
   const gradeMatch = sourceName.match(/-G([1-6])\b/i) ||
-    labels.join(" ").match(/(?:Grade\s*|\bG)([1-6])\b/i);
+    labels.join(" ").match(/(?:Grade\s*|\bG)([1-6])(?:\b|[A-Za-z])/i);
   const grade = gradeMatch ? gradeMatch[1] :
     /-K\b|kinder|\bK[MDR]?\b/i.test(sourceName) ? "Kindergarten" :
     "Mixed";
