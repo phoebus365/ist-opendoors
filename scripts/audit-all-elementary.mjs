@@ -81,7 +81,12 @@ for(const {name,email,listedElementary} of known.values()){
     total,secondary});
   if(status==="READY"){
     assert.ok(hasElementaryLessons(name,email,data),name+" not selectable despite records");
-    assert.ok(periodCounts[0]+periodCounts[2]>0,name+" absent from B weeks");
+    const screenshotShowsOnlyA = email==="billy_brown@istianjin.org.cn";
+    // Never require (or invent) lessons for a week that was not provided.
+    if (!screenshotShowsOnlyA) assert.ok(periodCounts[0]+periodCounts[2]>0,
+      name+" absent from B weeks");
+    else assert.deepEqual(periodCounts,[0,37,0],
+      "Billy's B-week classes were assumed even though only Week A was provided");
     assert.ok(periodCounts[1]>0,name+" absent from A week");
   }
 }
