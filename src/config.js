@@ -1,4 +1,4 @@
-import { PARTIAL_ELEMENTARY_SCHEDULES } from "./elementary-screenshot-schedules";
+import { PARTIAL_ELEMENTARY_SCHEDULES } from "./elementary-screenshot-schedules.js";
 
 /* ───────────────────────────────────────────────────────────────
    Open Doors — shared configuration
