@@ -1,3 +1,5 @@
+import { PARTIAL_ELEMENTARY_SCHEDULES } from "./elementary-screenshot-schedules";
+
 /* ───────────────────────────────────────────────────────────────
    Open Doors — shared configuration
    Everything that changes year to year lives here.
@@ -56,7 +58,7 @@ export const SUBJECTS_SEC = [
 
 export const GRADES_ES = [
   "Nursery","Pre-K","Kindergarten","Grade 1","Grade 2","Grade 3","Grade 4",
-  "Grade 5","Mixed","Staff"
+  "Grade 5","Grade 6","Mixed","Staff"
 ];
 
 export const GRADES_SEC = [
@@ -400,6 +402,16 @@ export function elementaryLabelsFor(name, email, iso, periodKey, timetables = {}
   return labels;
 }
 
+/* Some screenshots show only one rotation (Billy: Week A).
+   Show those verified classes while allowing the teacher to fill the
+   unknown week manually. Never generate an unverified duplicate schedule. */
+export function isUnverifiedElementaryWeek(email = "", iso = "") {
+  const { week } = locate(iso);
+  if (!week) return false;
+  return (PARTIAL_ELEMENTARY_SCHEDULES[String(email).trim().toLowerCase()] || [])
+    .includes(week.label.slice(0,1));
+}
+
 export function hasElementaryLessons(name, email = "", timetables = {}) {
   const sources = matchedElementarySources(name, email, timetables);
   if (!sources.length) return false;
@@ -421,11 +433,11 @@ export function scheduledElementaryClassFor(name, iso, periodKey, timetables = {
   if (!labels.length) return null;
   const sources = matchedElementarySources(name, email, timetables);
   const sourceName = sources[0] || "";
-  const gradeMatch = sourceName.match(/-G([1-5])\b/i) ||
-    labels.join(" ").match(/(?:Grade\s*|\bG)([1-5])\b/i);
+  const gradeMatch = sourceName.match(/-G([1-6])\b/i) ||
+    labels.join(" ").match(/(?:Grade\s*|\bG)([1-6])\b/i);
   const grade = gradeMatch ? gradeMatch[1] :
     /-K\b|kinder|\bK[MDR]?\b/i.test(sourceName) ? "Kindergarten" :
-    /ELC/i.test(sourceName) ? "Nursery" : "Mixed";
+    "Mixed";
   const specialization = /-PSPE|-PE\b/i.test(sourceName) ? "PE" :
     /-MUSIC/i.test(sourceName) ? "Music" :
     /-Art/i.test(sourceName) ? "Art" :
