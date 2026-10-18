@@ -71,9 +71,10 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [mode, setMode] = useState(null);          // null | "open" | "visit"
-  const [division, setDivision] = useState("Secondary");
-  const divisionChosen = useRef(false);
-  const changeDivision = d => { divisionChosen.current = true; setDivision(d); };
+  // Classroom-opening and visitor browsing must use INDEPENDENT divisions.
+  // A teacher who browses Secondary visits must not lose their Elementary timetable.
+  const [chosenOpenDivision, setChosenOpenDivision] = useState(null);
+  const [visitDivision, setVisitDivision] = useState("Secondary");
   const [entries, setEntries] = useState([]);
   const [visits, setVisits] = useState([]);
   const [walkins, setWalkins] = useState([]);
@@ -92,6 +93,17 @@ export default function App() {
     me?.user_metadata?.name ||
     (myEmail ? myEmail.split("@")[0].replace(/[._]/g, " ") : "");
 
+  // Resolve a teacher's own calendar from their verified directory entry.
+  // Keep a local identity fallback when directory access is delayed/unavailable.
+  const homeEntry = facultyDirectory.find(p =>
+    String(p.email || "").trim().toLowerCase() === myEmail);
+  const elemIdentity = ELEMENTARY_SCHEDULE_IDENTITIES.some(p =>
+    !!p.email && String(p.email).toLowerCase() === myEmail);
+  const defaultOpenDivision =
+    ["Elementary","Secondary"].includes(homeEntry?.division)
+      ? homeEntry.division : elemIdentity ? "Elementary" : "Secondary";
+  const openDivision = chosenOpenDivision ?? defaultOpenDivision;
+
   useEffect(() => {
     loadTimetables().then(data => {
       setTimetables(data);
@@ -106,14 +118,7 @@ export default function App() {
     supabase.from("opendoors_directory").select("name,email,division").order("name")
       .then(({data,error}) => {
         if (error) console.warn("Faculty directory unavailable",error.message);
-        else {
-          const list = data || [];
-          setFacultyDirectory(list);
-          if (!divisionChosen.current) {
-            const meInDirectory = list.find(p => String(p.email || "").trim().toLowerCase() === myEmail);
-            if (["Elementary","Secondary"].includes(meInDirectory?.division)) setDivision(meInDirectory.division);
-          }
-        }
+        else setFacultyDirectory(data || []);
       });
   }, [session]);
 
@@ -138,8 +143,8 @@ export default function App() {
 
   async function signOut() {
     await supabase.auth.signOut();
-    divisionChosen.current = false;
-    setDivision("Secondary");
+    setChosenOpenDivision(null);
+    setVisitDivision("Secondary");
     setEntries([]); setVisits([]); setWalkins([]); setLoaded(false); setMode(null);
   }
 
@@ -222,7 +227,7 @@ export default function App() {
     <OpenFlow
       facultyDirectory={facultyDirectory}
       timetables={timetables} timetableStatus={timetableStatus}
-      division={division} setDivision={changeDivision}
+      division={openDivision} setDivision={setChosenOpenDivision}
       entries={entries} setEntries={setEntries} visits={visits} setVisits={setVisits}
       myEmail={myEmail} myName={myName}
       setErr={setErr} say={say} setMode={setMode}
@@ -231,7 +236,7 @@ export default function App() {
 
   return shell(
     <VisitFlow
-      division={division} setDivision={changeDivision}
+      division={visitDivision} setDivision={setVisitDivision}
       entries={entries} visits={visits} setVisits={setVisits} walkins={walkins} setWalkins={setWalkins}
       myEmail={myEmail} myName={myName}
       setErr={setErr} say={say}
