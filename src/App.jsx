@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, notify } from "./supabase";
 import { PREVIEW } from "./preview";
 import { loadTimetables } from "./timetable-data";
+import { recordVisitHosts, recordVisitClassOptions } from "./record-visit-helpers";
 import {
   WINDOW_LABEL, DAY_NAMES, SHORT_DAYS, WEEKS,
   SUBJECTS_ES, SUBJECTS_SEC, GRADES_ES, GRADES_SEC,
@@ -216,7 +217,7 @@ export default function App() {
     />
   );
 
-  if (mode === "record") return shell(<RecordVisit entries={entries} visits={visits} walkins={walkins} setWalkins={setWalkins} timetables={timetables} myEmail={myEmail} myName={myName} setErr={setErr} say={say} />);
+  if (mode === "record") return shell(<RecordVisit entries={entries} visits={visits} walkins={walkins} setWalkins={setWalkins} timetables={timetables} facultyDirectory={facultyDirectory} myEmail={myEmail} myName={myName} say={say} />);
 
   if (mode === "admin" && isAdmin) return shell(<AdminDashboard
     entries={entries} visits={visits} walkins={walkins} facultyDirectory={facultyDirectory}
@@ -245,107 +246,147 @@ export default function App() {
 }
 
 
-function RecordVisit({ entries, visits, walkins, setWalkins, timetables, myEmail, myName, setErr, say }) {
+function RecordVisit({ entries, visits, walkins, setWalkins, timetables, facultyDirectory, myEmail, myName, say }) {
   const today = () => {
-    const now = new Date(), iso = [now.getFullYear(), String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
-    return WEEKS.some(w => w.dates.includes(iso)) ? iso : WEEKS[0].dates[0];
+    const now = new Date();
+    const iso = [now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
+    return WEEKS.some(w=>w.dates.includes(iso)) ? iso : WEEKS[0].dates[0];
   };
   const [date,setDate] = useState(today);
-  const [host,setHost] = useState("");
+  const [hostId,setHostId] = useState("");
   const [classKey,setClassKey] = useState("");
   const [manual,setManual] = useState("");
   const [busy,setBusy] = useState(false);
-  const normalize = x => (x||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-  const faculty = [
-    ...Object.keys(timetables.sec||{}).map(name=>({id:"s:"+name,name,division:"Secondary",email:""})),
-    ...Object.keys(timetables.es||{}).map(name=>({id:"e:"+name,name:name.replace(/-/g," · "),division:"Elementary",email:""}))
-  ];
-  const hostsByName = new Map(faculty.filter(h=>normalize(h.name)!==normalize(myName)).map(h=>[normalize(h.name),h]));
-  for (const e of entries) {
-    if (normalize(e.host_name)===normalize(myName)) continue;
-    const k=normalize(e.host_name);
-    if (hostsByName.has(k)) hostsByName.set(k,{...hostsByName.get(k),email:e.host_email});
-    else hostsByName.set(k,{id:"o:"+e.host_email,name:e.host_name,division:e.division,email:e.host_email});
+  const [formError,setFormError] = useState("");
+  const [confirmation,setConfirmation] = useState("");
+  const hosts = recordVisitHosts(facultyDirectory,entries,timetables,myEmail,myName);
+  const selectedHost = hosts.find(h=>h.id===hostId);
+  const {options:available,opened:matchedEntries} =
+    recordVisitClassOptions(selectedHost,date,entries,timetables);
+  const chosen = available.find(o=>o.id===classKey);
+  const normalized = str=>String(str||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  const ready = !!selectedHost && !!date &&
+    (!!chosen || (classKey==="manual" && !!manual.trim()));
+  function changeDate(d) {
+    setDate(d);setClassKey("");setManual("");setFormError("");setConfirmation("");
   }
-  const hosts = [...hostsByName.values()].sort((a,b)=>a.name.localeCompare(b.name));
-  const selectedHost = hosts.find(h=>h.id===host);
-  const {week,dayIndex} = locate(date);
-  const rotationDay = (week?.label.startsWith("A")?1:6)+dayIndex;
-  const weekLetter = week?.label.startsWith("A")?"A":"B";
-  const alternatives = [];
-  if(selectedHost?.id.startsWith("s:")) {
-    const timetable = timetables.sec?.[selectedHost.id.slice(2)] || {};
-    for (const [key,details] of Object.entries(timetable)) {
-      if (!key.startsWith(String(rotationDay))) continue;
-      const period = key.slice(String(rotationDay).length);
-      if (!"abcd".includes(period)) continue;
-      const label = `${details[0]}${details[1]?" · "+details[1]:""}${details[2]?" · Room "+details[2]:""} · ${["Periods 1–2","Periods 3–4","Periods 5–6","Periods 7–8"]["abcd".indexOf(period)]}`;
-      alternatives.push({id:"t:"+key,label});
-    }
-  } else if(selectedHost?.id.startsWith("e:")) {
-    const timetable = timetables.es?.[selectedHost.id.slice(2)] || {};
-    for (let period=1;period<=8;period++) {
-      const key = weekLetter+(dayIndex+1)+period;
-      const both = "AB"+(dayIndex+1)+period;
-      const labels = [...(timetable[key]||[]),...(timetable[both]||[])];
-      for(const label of [...new Set(labels)]) {
-        if (/school finishes|check out only/i.test(label)) continue;
-        alternatives.push({id:"t:"+key+":"+label,label:`P${period} · ${label}`});
-      }
-    }
+  function changeHost(id) {
+    setHostId(id);setClassKey("");setManual("");setFormError("");setConfirmation("");
   }
-  const matchedEntries = entries.filter(e=>e.date_str===date && selectedHost &&
-    ((selectedHost.email && e.host_email.toLowerCase()===selectedHost.email.toLowerCase()) ||
-     normalize(e.host_name)===normalize(selectedHost.name)));
-  const available = [...matchedEntries.map(e=>({id:"o:"+e.id,label:`${e.subject} · ${periodLabel(e.division,e.period_key)} (opened)`})),...alternatives];
   async function record() {
-    if(!selectedHost || !date || !classKey || (classKey==="manual"&&!manual.trim())||busy)return;
-    const entry = classKey.startsWith("o:") ? matchedEntries.find(e=>e.id===classKey.slice(2)) : null;
-    const label = classKey==="manual" ? manual.trim() : (available.find(x=>x.id===classKey)?.label || "");
-    if(entry && (visits.some(v=>v.entry_id===entry.id && v.visitor_email.toLowerCase()===myEmail) ||
-       walkins.some(v=>v.entry_id===entry.id && v.visitor_email.toLowerCase()===myEmail))) {
-       setErr("This class already counts toward your visits.");return;
+    if(busy) return;
+    setFormError("");setConfirmation("");
+    if (!selectedHost) {setFormError("Please select the teacher you visited.");return;}
+    if (!myEmail) {setFormError("Your signed-in school email is missing. Please sign out and back in.");return;}
+    if (!chosen && !(classKey==="manual" && manual.trim())) {
+      setFormError("Please select a class, or choose the manual class option and enter its name.");return;
     }
-    if(walkins.some(v=>v.visit_date===date && normalize(v.host_name)===normalize(selectedHost.name) && v.class_label===label && v.visitor_email.toLowerCase()===myEmail)) {
-      setErr("You've already recorded this visit.");return;
+    const entry=chosen?.entryId
+      ? matchedEntries.find(e=>e.id===chosen.entryId) : null;
+    const label=classKey==="manual" ? manual.trim() : chosen?.label || "";
+    if (!label) {setFormError("The selected class could not be identified. Please choose it again.");return;}
+    const email=myEmail.trim().toLowerCase();
+    const alreadyBooked=!!entry && visits.some(v=>
+      v.entry_id===entry.id && String(v.visitor_email).toLowerCase()===email);
+    if(alreadyBooked) {
+      setFormError("You booked this class already, so it is counted automatically. You don't need to record it again.");
+      return;
+    }
+    const alreadyRecorded=walkins.some(v=>
+      String(v.visitor_email||"").toLowerCase()===email &&
+      ((entry && v.entry_id===entry.id) ||
+        (v.visit_date===date && v.division===selectedHost.division &&
+          ((selectedHost.email && String(v.host_email||"").toLowerCase()===selectedHost.email) ||
+            normalized(v.host_name)===normalized(selectedHost.name)) &&
+          v.class_label===label)));
+    if(alreadyRecorded) {
+      setFormError("This visit has already been recorded. You don't need to submit it again.");
+      return;
     }
     setBusy(true);
-    const row = {entry_id:entry?.id||null,visit_date:date,division:selectedHost.division,host_name:selectedHost.name,host_email:selectedHost.email||null,
-      visitor_name:myName,visitor_email:myEmail,class_label:label};
-    const {data,error}=await supabase.from("opendoors_walkins").insert(row).select().single();
-    setBusy(false);
-    if(error){setErr("Could not record visit. "+error.message);return;}
-    setWalkins(p=>[...p,data]);setClassKey("");setManual("");say("Walk-in visit recorded.");
+    try {
+      const row={
+        entry_id:entry?.id||null,
+        visit_date:date,
+        division:selectedHost.division,
+        host_name:selectedHost.name,
+        host_email:selectedHost.email||null,
+        visitor_name:myName,
+        visitor_email:email,
+        class_label:label
+      };
+      const {data,error}=await supabase.from("opendoors_walkins").insert(row).select().single();
+      if(error) {
+        const message=error.code==="23505"
+          ? "This visit has already been saved."
+          : "Could not save your visit: "+(error.message||"database error");
+        setFormError(message+" Your selection has been preserved.");
+        return;
+      }
+      if(!data?.id) {
+        setFormError("The server did not confirm your visit. Check with an administrator before trying again.");
+        return;
+      }
+      setWalkins(prev=>[...prev,data]);
+      setClassKey("");setManual("");
+      const success="Visit to "+selectedHost.name+" on "+fmtDate(date)+" recorded successfully.";
+      setConfirmation(success);
+      say("Walk-in visit recorded.");
+    } catch(e) {
+      setFormError("Unable to contact the visit database: "+(e?.message||"network error")+
+        ". Your selections remain in place. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
   return <main style={{maxWidth:850,margin:"0 auto",padding:"32px 20px"}}>
     <h2 style={{fontSize:23,margin:"0 0 7px"}}>Record a visit</h2>
-    <p style={{color:T.text2,fontSize:14}}>For classroom visits without a booking. Scheduled visits already count automatically.</p>
+    <p style={{color:T.text2,fontSize:14}}>
+      For classroom visits without a booking. A booked class already counts automatically.
+      Choose a teacher and class below; if it isn't listed, enter the class manually.
+    </p>
     <div style={{background:"#fff",border:`1px solid ${T.line}`,borderRadius:10,padding:20,marginTop:20}}>
       <label style={lbl}>Date visited</label>
       {WEEKS.map((w,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"75px repeat(5,minmax(0,1fr))",gap:5,alignItems:"center",margin:"10px 0"}}>
         <span style={{fontSize:12,fontWeight:700,color:T.red}}>{w.label}</span>
-        {w.dates.map(d=><button key={d} onClick={()=>{setDate(d);setClassKey("");}} style={{
+        {w.dates.map(d=><button type="button" key={d} onClick={()=>changeDate(d)} style={{
           fontFamily:FONT,borderRadius:7,border:`1px solid ${date===d?T.red:T.line}`,
           background:date===d?T.red:"#fff",color:date===d?"#fff":T.ink,padding:"11px 1px",
           cursor:"pointer",fontWeight:date===d?700:500,fontSize:12
         }}>{SHORT_DAYS[w.dates.indexOf(d)]} {Number(d.slice(-2))}</button>)}
       </div>)}
-      <div style={{marginTop:20}}><label style={lbl}>Teacher visited</label>
-        <select style={input} value={host} onChange={e=>{setHost(e.target.value);setClassKey("");}}>
+      <div style={{marginTop:20}}><label htmlFor="record-host" style={lbl}>Teacher visited</label>
+        <select id="record-host" style={input} value={hostId} onChange={e=>changeHost(e.target.value)}>
           <option value="">Choose a teacher…</option>
           {hosts.map(h=><option value={h.id} key={h.id}>{h.name} · {h.division}</option>)}
         </select>
       </div>
-      <div style={{marginTop:16}}><label style={lbl}>Class visited</label>
-        <select style={input} value={classKey} disabled={!host} onChange={e=>{setClassKey(e.target.value);setManual("");}}>
+      <div style={{marginTop:16}}><label htmlFor="record-class" style={lbl}>Class visited</label>
+        <select id="record-class" style={input} value={classKey} disabled={!selectedHost}
+          onChange={e=>{setClassKey(e.target.value);setManual("");setFormError("");setConfirmation("");}}>
           <option value="">Choose a class…</option>
-          {available.map(x=><option value={x.id} key={x.id}>{x.label}</option>)}
+          {available.map(c=><option value={c.id} key={c.id}>{c.label}</option>)}
           <option value="manual">Don't see your class? Add it manually</option>
         </select>
-        {classKey==="manual"&&<input style={{...input,marginTop:10}} value={manual} onChange={e=>setManual(e.target.value)}
-          placeholder="Enter the class or lesson you visited" />}
+        {selectedHost && available.length===0 && (
+          <p style={{fontSize:12,color:T.text2,margin:"8px 0 0"}}>
+            No classes are listed for this teacher on this date. Choose the manual option and enter the class you visited.
+          </p>
+        )}
+        {classKey==="manual" && <input style={{...input,marginTop:10}} value={manual}
+          aria-label="Class or lesson visited" onChange={e=>{setManual(e.target.value);setFormError("");}}
+          placeholder="Enter the class or lesson you visited"/>}
       </div>
-      <button style={{...btn("big"),marginTop:20}} disabled={busy||!host||!classKey||(classKey==="manual"&&!manual.trim())} onClick={record}>{busy?"Recording…":"Record visit"}</button>
+      <button type="button" style={{...btn("big"),marginTop:20}}
+        disabled={busy} onClick={record}>{busy?"Recording…":"Record visit"}</button>
+      {!ready && !busy && <p style={{fontSize:12,color:T.text2,margin:"9px 0 0"}}>
+        Select a teacher and class to record your visit.
+      </p>}
+      {formError && <p role="alert" style={{fontSize:13,color:T.red,margin:"12px 0 0",
+        padding:"11px 13px",border:`1px solid ${T.redMid}`,borderRadius:7}}>{formError}</p>}
+      {confirmation && <p role="status" style={{fontSize:13,color:"#216a44",margin:"12px 0 0"}}>
+        {confirmation}
+      </p>}
     </div>
   </main>;
 }
