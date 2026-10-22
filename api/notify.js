@@ -46,27 +46,42 @@ async function send(tok, to, subject, html) {
   if (!r.ok) throw new Error(`sendMail ${to}: ` + (await r.text()));
 }
 
+/* Email-safe inline colors mirror src/config.js and the Open Doors login screen.
+   A red masthead and orange divider also work in Outlook/desktop mail clients. */
+const EMAIL = Object.freeze({
+  red: "#cd2129", orange: "#f89c26", paper: "#f7f7f7",
+  ink: "#2b2929", muted: "#5c6474", line: "#e6e3dd"
+});
+
 const SHELL = (body) => `
-<div style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;max-width:540px;color:#1a1a1a">
-  <div style="background:#1a1a1a;padding:16px 22px;border-radius:6px 6px 0 0">
-    <span style="font-size:18px;color:#fff">Open <em style="color:#d9736c">Doors</em></span>
-  </div>
-  <div style="border:1px solid #e3e0dc;border-top:none;border-radius:0 0 6px 6px;padding:24px 22px">
-    ${body}
-    <p style="font-size:12px;color:#96918b;margin:26px 0 0;border-top:1px solid #e3e0dc;padding-top:14px">
-      International School of Tianjin · 10/19/2026 – 11/06/2026
-    </p>
-  </div>
-</div>`;
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+  style="background-color:${EMAIL.paper};border-collapse:collapse;font-family:'Segoe UI',Helvetica,Arial,sans-serif;color:${EMAIL.ink}">
+  <tr><td align="center" style="padding:16px 12px">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600"
+      style="width:100%;max-width:600px;background-color:#ffffff;border-collapse:collapse">
+      <tr><td style="background-color:${EMAIL.red};padding:23px 28px;color:#ffffff;font-size:24px;font-weight:700">
+        Open <em style="color:#ffffff;font-style:italic;font-weight:700">Doors</em>
+      </td></tr>
+      <tr><td style="background-color:${EMAIL.orange};height:5px;font-size:0;line-height:5px">&nbsp;</td></tr>
+      <tr><td style="padding:28px;border:1px solid ${EMAIL.line};border-top:none;color:${EMAIL.ink};font-size:15px;line-height:1.55">
+        ${body}
+        <p style="font-size:12px;color:${EMAIL.muted};margin:28px 0 0;border-top:1px solid ${EMAIL.line};padding-top:15px">
+          International School of Tianjin · 10/19/2026 – 11/06/2026
+        </p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>`;
 
 // Format stored ISO dates without timezone conversion; keep UI-formatted dates intact.
 const emailDate = value => String(value ?? "").replace(/^(\d{4})-(\d{2})-(\d{2})$/, "$2/$3/$1");
 
 const slot = (e) => `
-  <table style="font-size:14px;color:#55524e;border-collapse:collapse;margin:14px 0">
-    <tr><td style="padding:3px 16px 3px 0;color:#96918b">When</td><td><strong>${emailDate(e.date)}</strong> · ${e.period}</td></tr>
-    <tr><td style="padding:3px 16px 3px 0;color:#96918b">Class</td><td>${e.subject} · ${e.grade}</td></tr>
-    ${e.room ? `<tr><td style="padding:3px 16px 3px 0;color:#96918b">Room</td><td>${e.room}</td></tr>` : ""}
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+    style="font-size:14px;color:${EMAIL.ink};border-collapse:collapse;margin:16px 0 22px">
+    <tr><td style="padding:5px 20px 5px 0;color:${EMAIL.muted};vertical-align:top">When</td><td style="padding:5px 0"><strong>${emailDate(e.date)}</strong> · ${e.period}</td></tr>
+    <tr><td style="padding:5px 20px 5px 0;color:${EMAIL.muted};vertical-align:top">Class</td><td style="padding:5px 0">${e.subject} · ${e.grade}</td></tr>
+    ${e.room ? `<tr><td style="padding:5px 20px 5px 0;color:${EMAIL.muted};vertical-align:top">Room</td><td style="padding:5px 0">${e.room}</td></tr>` : ""}
   </table>`;
 
 export default async function handler(req, res) {
@@ -138,7 +153,7 @@ export default async function handler(req, res) {
         SHELL(`
           <p style="font-size:15px;margin:0 0 4px">You're signed up to visit <strong>${host.name}</strong>.</p>
           ${slot(entry)}
-          <p style="font-size:13.5px;color:#55524e;margin:0">
+          <p style="font-size:13.5px;color:#5c6474;margin:0">
             If something comes up, open the board and withdraw — ${host.name.split(" ")[0]} will be told.
           </p>`)
       );
@@ -147,7 +162,7 @@ export default async function handler(req, res) {
         SHELL(`
           <p style="font-size:15px;margin:0 0 4px"><strong>${visitor.name}</strong> has signed up to visit.</p>
           ${slot(entry)}
-          <p style="font-size:13.5px;color:#55524e;margin:0">Nothing to do — just letting you know.</p>`)
+          <p style="font-size:13.5px;color:#5c6474;margin:0">Nothing to do — just letting you know.</p>`)
       );
     }
 
@@ -157,7 +172,7 @@ export default async function handler(req, res) {
         SHELL(`
           <p style="font-size:15px;margin:0 0 4px"><strong>${host.name}</strong> has cancelled this open classroom session.</p>
           ${slot(entry)}
-          <p style="font-size:13.5px;color:#55524e">Your booking is cancelled. You can choose another class on Open Doors.</p>`)
+          <p style="font-size:13.5px;color:#5c6474">Your booking is cancelled. You can choose another class on Open Doors.</p>`)
       );
     }
 
@@ -167,15 +182,15 @@ export default async function handler(req, res) {
         SHELL(`
           <p style="font-size:15px;margin:0 0 4px"><strong>${visitor.name}</strong> has withdrawn from your class.</p>
           ${slot(entry)}
-          ${reason ? `<p style="font-size:13.5px;color:#55524e;margin:0 0 6px"><strong>Reason:</strong> ${reason}</p>` : ""}
-          ${note ? `<p style="font-size:13.5px;color:#55524e;margin:0;font-style:italic">"${note}"</p>` : ""}`)
+          ${reason ? `<p style="font-size:13.5px;color:#5c6474;margin:0 0 6px"><strong>Reason:</strong> ${reason}</p>` : ""}
+          ${note ? `<p style="font-size:13.5px;color:#5c6474;margin:0;font-style:italic">"${note}"</p>` : ""}`)
       );
       await send(tok, visitor.email,
         `Withdrawn from ${host.name}'s class`,
         SHELL(`
           <p style="font-size:15px;margin:0 0 4px">You've withdrawn from this visit.</p>
           ${slot(entry)}
-          <p style="font-size:13.5px;color:#55524e;margin:0">${host.name} has been told. You can sign up again any time.</p>`)
+          <p style="font-size:13.5px;color:#5c6474;margin:0">${host.name} has been told. You can sign up again any time.</p>`)
       );
     }
 
