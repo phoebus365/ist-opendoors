@@ -3,6 +3,7 @@ import { supabase, notify } from "./supabase";
 import { PREVIEW } from "./preview";
 import { loadTimetables } from "./timetable-data";
 import { recordVisitHosts, recordVisitClassOptions } from "./record-visit-helpers";
+import { addClassInvitee, MAX_CLASS_INVITEES } from "./class-invite-selection";
 import {
   WINDOW_LABEL, DAY_NAMES, SHORT_DAYS, WEEKS,
   SUBJECTS_ES, SUBJECTS_SEC, GRADES_ES, GRADES_SEC,
@@ -777,6 +778,12 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
   const [step, setStep] = useState("pick");   // pick | detail
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [editInvitees, setEditInvitees] = useState([]);
+  const [editInviteQuery, setEditInviteQuery] = useState("");
+  const [editInviteAddress, setEditInviteAddress] = useState("");
+  const [editInviteBusy, setEditInviteBusy] = useState(false);
+  const [editInviteNotice, setEditInviteNotice] = useState("");
+  const [editInviteError, setEditInviteError] = useState("");
   const [inviteDrafts, setInviteDrafts] = useState({});
   const [inviteSearch, setInviteSearch] = useState({});
   const [inviteExpanded, setInviteExpanded] = useState({});
@@ -859,6 +866,73 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
     setSlot(k, {invitees:[...new Set([...(picked[k].invitees || []),email])]});
     setInviteDrafts(p => ({...p,[k]:""}));
   }
+  // Invitations sent from an already-open class are a separate, explicit action.
+  // Ordinary edits and Save changes must NEVER trigger invitations.
+  function startEditClass(entry) {
+    setEditing({...entry});
+    setEditInvitees([]);
+    setEditInviteQuery("");
+    setEditInviteAddress("");
+    setEditInviteNotice("");
+    setEditInviteError("");
+  }
+
+  function chooseEditedInvitee(address) {
+    setEditInviteNotice("");
+    setEditInviteError("");
+    const result = addClassInvitee(editInvitees,address,myEmail);
+    if (result.error) setEditInviteError(result.error);
+    else setEditInvitees(result.recipients);
+    return !result.error;
+  }
+
+  function manuallyAddEditedInvitee() {
+    if (chooseEditedInvitee(editInviteAddress)) setEditInviteAddress("");
+  }
+
+  async function sendEditedClassInvitations() {
+    if (editInviteBusy || !editing?.id) return;
+    setEditInviteError("");
+    setEditInviteNotice("");
+    if (!editInvitees.length) {
+      setEditInviteError("Choose at least one colleague to invite.");
+      return;
+    }
+    if (editInvitees.length > MAX_CLASS_INVITEES) {
+      setEditInviteError("Invite no more than 12 colleagues at once.");
+      return;
+    }
+    setEditInviteBusy(true);
+    try {
+      const {data:auth, error:authError} = await supabase.auth.getSession();
+      const token = auth?.session?.access_token;
+      if (authError || !token) {
+        setEditInviteError("Your session has expired. Sign in again before sending invitations.");
+        return;
+      }
+      const response = await notify({
+        kind:"class_invitation",
+        entry_id:editing.id,
+        access_token:token,
+        invitees:editInvitees
+      });
+      if (!response?.ok) {
+        setEditInviteError("We couldn't confirm delivery of every invitation" +
+          (response?.status ? " (status "+response.status+")" : "") +
+          ". Some may have been delivered. Check before retrying to avoid duplicate emails.");
+        return;
+      }
+      const n = editInvitees.length;
+      setEditInvitees([]);
+      setEditInviteAddress("");
+      setEditInviteNotice(`Invitation ${n===1?"email has":"emails have"} been sent to ${n} ${n===1?"colleague":"colleagues"}. They must book the class themselves.`);
+    } catch (error) {
+      setEditInviteError("Could not send invitations: " +
+        (error?.message || "network error") + ". Your selected colleagues are retained.");
+    } finally {
+      setEditInviteBusy(false);
+    }
+  }
 
   const ready = keys.length > 0 && keys.every(k => picked[k].subject);
 
@@ -900,7 +974,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
   }
 
   async function saveOpenClass() {
-    if (!editing?.subject?.trim()) return;
+    if (!editing?.subject?.trim() || editInviteBusy) return;
     const { data, error } = await supabase.from("opendoors_entries")
       .update({ subject: editing.subject.trim(), grade: editing.grade, room: editing.room,
         strategies: editing.strategies, standards: editing.standards, note: editing.note || null })
@@ -966,7 +1040,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
       .map(e => `${e.date_str}|${e.period_key}`)
   );
 
-  const editModal = editing && <Modal onClose={() => setEditing(null)} width={620}>
+  const editModal = editing && <Modal onClose={() => {if(!editInviteBusy)setEditing(null);}} width={620}>
     <h2 style={{fontSize:21,margin:"0 0 8px"}}>Edit open class</h2>
     <p style={{color:T.text2,fontSize:13}}>{fmtLong(editing.date_str)} · {periodLabel(editing.division,editing.period_key)}</p>
     {[["Subject","subject"],["Grade","grade"],["Room","room"]].map(([label,key])=><div key={key} style={{marginBottom:12}}>
@@ -981,9 +1055,69 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
     <div style={{height:12}}/>
     <label style={lbl}>Lesson note (optional)</label>
     <textarea style={input} rows={3} value={editing.note || ""} onChange={e=>setEditing(p=>({...p,note:e.target.value}))}/>
-    <div style={{display:"flex",gap:10,justifyContent:"space-between",marginTop:20}}>
-      <button style={{...btnGhost,color:T.red}} onClick={()=>{const e=editing;setEditing(null);cancelOpenClass(e);}}>Cancel opening</button>
-      <div style={{display:"flex",gap:10}}><button style={btnGhost} onClick={()=>setEditing(null)}>Close</button><button style={btn("big")} onClick={saveOpenClass}>Save changes</button></div>
+    <section aria-label="Invite colleagues to an open class"
+      style={{marginTop:20,padding:"16px",border:`1px solid ${T.line}`,borderLeft:`4px solid ${T.red}`,borderRadius:8,background:T.page}}>
+      <div style={{fontSize:15,fontWeight:700,color:T.ink,marginBottom:5}}>Invite colleagues</div>
+      <p style={{fontSize:12.5,color:T.text2,margin:"0 0 12px",lineHeight:1.6}}>
+        This class is already open. Choose colleagues to invite them by email.
+        The invitation links to the currently saved class details, and does not book a visit.
+        If you changed any details above, save those changes first, then reopen this class to invite.
+      </p>
+      <input type="search" style={input} aria-label="Search colleagues to invite"
+        placeholder="Find colleagues by name or email…" value={editInviteQuery}
+        disabled={editInviteBusy} onChange={e=>setEditInviteQuery(e.target.value)}/>
+      <div style={{maxHeight:165,overflowY:"auto",marginTop:8,background:"#fff",
+        border:`1px solid ${T.line}`,borderRadius:5}}>
+        {knownColleagues.filter(person=>(person.name+" "+person.email)
+          .toLowerCase().includes(editInviteQuery.trim().toLowerCase())).map(person=>
+          <label key={person.email} style={{display:"flex",alignItems:"center",gap:10,
+            padding:"8px 10px",borderBottom:`1px solid ${T.line}`,fontSize:12.5,cursor:"pointer"}}>
+            <input type="checkbox" style={{accentColor:T.red}}
+              disabled={editInviteBusy}
+              checked={editInvitees.includes(person.email)}
+              onChange={()=>editInvitees.includes(person.email)
+                ? (setEditInvitees(previous=>previous.filter(email=>email!==person.email)),
+                   setEditInviteError(""),setEditInviteNotice(""))
+                : chooseEditedInvitee(person.email)}/>
+            <span style={{color:T.ink}}>{person.name}</span>
+            <span style={{fontSize:11,color:T.muted,marginLeft:"auto"}}>{person.email}</span>
+          </label>)}
+        {knownColleagues.length===0 && <p style={{fontSize:12,color:T.muted,padding:11}}>
+          The staff directory is unavailable. You can still enter an IST email below.
+        </p>}
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
+        <input type="email" aria-label="Add another IST email"
+          style={{...input,flex:"1 1 220px",minWidth:0}} value={editInviteAddress}
+          disabled={editInviteBusy} placeholder="colleague@istianjin.org.cn"
+          onChange={e=>setEditInviteAddress(e.target.value)}
+          onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();manuallyAddEditedInvitee();}}}/>
+        <button type="button" style={btnGhost} disabled={editInviteBusy} onClick={manuallyAddEditedInvitee}>Add email</button>
+      </div>
+      {editInvitees.length>0 && <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:10}}>
+        {editInvitees.map(email=><button type="button" key={email}
+          disabled={editInviteBusy} title="Remove recipient"
+          onClick={()=>{setEditInvitees(p=>p.filter(x=>x!==email));setEditInviteError("");setEditInviteNotice("");}}
+          style={{...btnGhost,padding:"4px 8px",fontSize:11}}>
+          {knownContacts.get(email)?.name||email} ×
+        </button>)}
+      </div>}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+        gap:10,flexWrap:"wrap",marginTop:14}}>
+        <span style={{fontSize:11.5,color:T.text2}}>{editInvitees.length} / {MAX_CLASS_INVITEES} recipients selected</span>
+        <button type="button" style={btn("big")} disabled={editInviteBusy||!editInvitees.length}
+          onClick={sendEditedClassInvitations}>{editInviteBusy?"Sending…":"Send invitations"}</button>
+      </div>
+      {editInviteError && <p role="alert" style={{color:T.red,fontSize:12.5,margin:"10px 0 0"}}>{editInviteError}</p>}
+      {editInviteNotice && <p role="status" style={{color:"#267444",fontSize:12.5,margin:"10px 0 0"}}>{editInviteNotice}</p>}
+    </section>
+    <div style={{display:"flex",gap:10,justifyContent:"space-between",marginTop:20,flexWrap:"wrap"}}>
+      <button type="button" disabled={editInviteBusy} style={{...btnGhost,color:T.red}}
+        onClick={()=>{const e=editing;setEditing(null);cancelOpenClass(e);}}>Cancel opening</button>
+      <div style={{display:"flex",gap:10}}>
+        <button type="button" disabled={editInviteBusy} style={btnGhost} onClick={()=>setEditing(null)}>Close</button>
+        <button type="button" disabled={editInviteBusy} style={btn("big")} onClick={saveOpenClass}>Save changes</button>
+      </div>
     </div>
   </Modal>;
 
@@ -1218,7 +1352,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
           myName={myName} myEmail={myEmail} timetables={timetables}
           timetableStatus={timetableStatus} hasSecondaryTimetable={hasSecondaryTimetable}
           hasElementaryTimetable={hasElementaryTimetable}
-          onManage={setEditing}
+          onManage={startEditClass}
           ownEntries={entries.filter(e => e.host_email.toLowerCase() === myEmail && e.division === division)}
         />
       ))}
