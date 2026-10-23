@@ -17,7 +17,7 @@ assert.equal(recipients.length,12);
 assert.ok(addClassInvitee(recipients,"over@istianjin.org.cn",host).error,
   "Invitations must respect the API's 12-person limit");
 const app=readFileSync("src/App.jsx","utf8");
-const save=app.slice(app.indexOf("async function saveOpenClass()"),app.indexOf("async function cancelOpenClass()"));
+const save=app.slice(app.indexOf("async function saveOpenClass()"),app.indexOf("async function cancelOpenClass(entry)"));
 const send=app.slice(app.indexOf("async function sendEditedClassInvitations()"),app.indexOf("const ready = keys.length",app.indexOf("async function sendEditedClassInvitations()")));
 const editor=app.slice(app.indexOf("const editModal ="),app.indexOf('if (step === "detail")',app.indexOf("const editModal =")));
 assert.ok(save.includes('.update(') && !save.includes('notify('),
