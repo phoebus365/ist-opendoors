@@ -1,0 +1,11 @@
+import assert from "node:assert/strict";
+import {discoverClasses} from "../src/class-discovery.js";
+const timetable={sec:{"Joe Schaaf":{"6b":["MYP English","10","201"]}},es:{"Gemma-G5":{B12:["Writing"]}}};
+const directory=[{name:"Joe Schaaf",email:"joe_schaaf@istianjin.org.cn",division:"Secondary"},{name:"Gemma Lowrey",email:"gemma_lowrey@istianjin.org.cn",division:"Elementary"}];
+const r=discoverClasses("Elementary",[],directory,timetable);
+assert.equal(r.length,2);
+const posted={id:"123",division:"Elementary",date_str:"2026-10-19",period_key:"P2",host_email:"gemma_lowrey@istianjin.org.cn",host_name:"Gemma Lowrey",subject:"Writing"};
+const merged=discoverClasses("Elementary",[posted],directory,timetable);
+assert.equal(merged.length,2);assert.equal(merged.filter(x=>x.source==="posted").length,1);
+assert.ok(discoverClasses("Secondary",[],directory,timetable).some(x=>x.subject==="MYP English"));
+console.log("PASS: all scheduled lessons visible, posted lessons deduplicated.");

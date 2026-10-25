@@ -3,6 +3,7 @@ import { supabase, notify } from "./supabase";
 import { PREVIEW } from "./preview";
 import { loadTimetables } from "./timetable-data";
 import { recordVisitHosts, recordVisitClassOptions } from "./record-visit-helpers";
+import {discoverClasses} from "./class-discovery";
 import { addClassInvitee, MAX_CLASS_INVITEES } from "./class-invite-selection";
 import {
   WINDOW_LABEL, DAY_NAMES, SHORT_DAYS, WEEKS,
@@ -239,7 +240,7 @@ export default function App() {
   return shell(
     <VisitFlow
       division={visitDivision} setDivision={setVisitDivision}
-      entries={entries} visits={visits} setVisits={setVisits} walkins={walkins} setWalkins={setWalkins}
+      entries={entries} timetables={timetables} facultyDirectory={facultyDirectory} visits={visits} setVisits={setVisits} walkins={walkins} setWalkins={setWalkins}
       myEmail={myEmail} myName={myName}
       setErr={setErr} say={say}
     />
@@ -1140,7 +1141,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
         const { week } = locate(date);
         return (
           <div key={k} style={{
-            background: "#fff", border: `1px solid ${T.line}`,
+            background: it.source==="scheduled"?"#edf8ed":"#d8efdf", border: `1px solid ${T.line}`,
             borderLeft: `4px solid ${T.red}`, borderRadius: T.radius,
             padding: "20px 22px", marginBottom: 16
           }}>
@@ -1681,12 +1682,14 @@ function FocusGroup({ title, items, value, toggle, divider }) {
 
 /* ═══════════════════════════════════════════════ visit flow */
 
-function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins, setWalkins, myEmail, myName, setErr, say }) {
+function VisitFlow({ division, setDivision, entries, timetables, facultyDirectory, visits, setVisits, walkins, setWalkins, myEmail, myName, setErr, say }) {
   const [q, setQ] = useState("");
   const [subjectF, setSubjectF] = useState("");
   const [gradeF, setGradeF] = useState("");
   const [focusF, setFocusF] = useState("");
   const [stdF, setStdF] = useState("");
+  const [timeF,setTimeF]=useState("");
+  const [postedOnly,setPostedOnly]=useState(false);
   const [listView, setListView] = useState(false);
   const [detail, setDetail] = useState(null);
   // Invitation links bring the visitor straight to the matching class.
@@ -1709,7 +1712,7 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
   const PERIODS = periodsFor(division);
   const SUBJECTS = division === "Elementary" ? SUBJECTS_ES : SUBJECTS_SEC;
   const GRADES = division === "Elementary" ? GRADES_ES : GRADES_SEC;
-  const filtering = q.trim() || subjectF || gradeF || focusF || stdF;
+  const filtering = q.trim() || subjectF || gradeF || focusF || stdF || timeF || postedOnly;
 
   useEffect(() => { if (filtering) setListView(true); }, [filtering]);
   useEffect(() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); }, [division]);
@@ -1742,7 +1745,8 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
       (e.strategies || []).some(x => x.toLowerCase().includes(s)) ||
       (e.standards || []).some(x => x.toLowerCase().includes(s));
     return textOk
-      && (!subjectF || e.subject === subjectF)
+      && (!subjectF || e.subject.toLowerCase().includes(subjectF.toLowerCase()))
+      && (!timeF || e.period_key===timeF)
       && (!gradeF || e.grade === gradeF)
       && (!focusF || (e.strategies || []).includes(focusF))
       && (!stdF || (stdF.length === 1
@@ -1750,7 +1754,8 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
             : (e.standards || []).includes(stdF)));
   }
 
-  const inDivision = entries.filter(e => e.division === division);
+  const allClasses=discoverClasses(division,entries,facultyDirectory,timetables);
+  const inDivision=postedOnly?allClasses.filter(e=>e.source==="posted"):allClasses;
   const hits = [];
   WEEKS.forEach(w => w.dates.forEach((d, di) => PERIODS.forEach(p => {
     inDivision
@@ -1759,6 +1764,7 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
   })));
 
   async function join(entry) {
+    if(entry.source==="scheduled")return;
     const { data, error } = await supabase.from("opendoors_visits")
       .upsert({
         entry_id: entry.id, visitor_email: myEmail, visitor_name: myName,
@@ -1816,7 +1822,7 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
           Find a class to visit
         </h2>
         <p style={{ fontSize: 14, color: T.text2, margin: "0 0 22px", lineHeight: 1.55 }}>
-          Click any class to see what's planned and sign up. You can withdraw later if something comes up.
+          Search the whole teaching timetable. Dark green is especially open: the teacher specifically invited visitors. Light green means open too; check with the teacher before dropping in.
         </p>
 
         <DivisionTabs division={division} onChange={setDivision} />
@@ -1829,9 +1835,10 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search teacher, subject, notes…"
               style={{ ...input, flex: "1 1 200px", minWidth: 150, fontSize: 13,
                 border: `1.5px solid ${q ? T.red : T.line}` }} />
+            <select value={timeF} onChange={e=>setTimeF(e.target.value)} style={{...sel(!!timeF),flex:"0 1 180px"}}><option value="">Any time</option>{PERIODS.map(p=><option value={p.key} key={p.key}>{p.label} · {p.time}</option>)}</select>
             <select value={subjectF} onChange={e => setSubjectF(e.target.value)} style={{ ...sel(!!subjectF), flex: "0 1 200px" }}>
               <option value="">All subjects</option>
-              {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+              {[...new Set([...SUBJECTS,...allClasses.map(e=>e.subject)])].sort().map(subject=><option key={subject} value={subject}>{subject}</option>)}
             </select>
             <select value={gradeF} onChange={e => setGradeF(e.target.value)} style={{ ...sel(!!gradeF), flex: "0 1 140px" }}>
               <option value="">All grades</option>
@@ -1850,8 +1857,9 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
                 </optgroup>
               ))}
             </select>
+            <label style={{display:"flex",gap:6,alignItems:"center",fontSize:12,color:T.text2}}><input type="checkbox" checked={postedOnly} onChange={e=>setPostedOnly(e.target.checked)} style={{accentColor:"#267444"}}/>Especially open only</label>
             {filtering && (
-              <button onClick={() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); setStdF(""); }}
+              <button onClick={() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); setStdF(""); setTimeF(""); setPostedOnly(false); }}
                 style={{ ...btnGhost, borderColor: T.redMid, color: T.red, padding: "8px 14px" }}>Clear</button>
             )}
           </div>
@@ -1862,7 +1870,7 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
             <span style={{ fontSize: 12.5, color: filtering ? T.red : T.muted }}>
               {filtering
                 ? `${hits.length} ${hits.length === 1 ? "class" : "classes"} match`
-                : `${inDivision.length} ${inDivision.length === 1 ? "class" : "classes"} open in ${division}`}
+                : `${inDivision.length} scheduled lessons in ${division} · ${inDivision.filter(e=>e.source==="posted").length} especially open`}
             </span>
             <div style={{ display: "flex", border: `1px solid ${T.line}`, borderRadius: 5, overflow: "hidden" }}>
               {["Calendar", "List"].map((t, i) => {
@@ -1891,7 +1899,15 @@ function VisitFlow({ division, setDivision, entries, visits, setVisits, walkins,
         )}
       </main>
 
-      {detail && (
+      {detail?.source==="scheduled" && <Modal onClose={()=>setDetail(null)} width={540}>
+        <h2 style={{fontSize:21}}>{detail.subject}</h2>
+        <p>{detail.host_name} · {fmtLong(detail.date_str)} · {periodLabel(detail.division,detail.period_key)}</p>
+        <p style={{color:T.text2,fontSize:13}}>Grade {detail.grade||"not specified"}{detail.room?" · Room "+detail.room:""}</p>
+        <p style={{fontSize:13,color:"#426b4d",fontWeight:700}}>Open too · Scheduled lesson</p>
+        <p style={{fontSize:13,lineHeight:1.6}}>This teacher has not specifically posted this lesson for visitors. Please check with them before attending. This does not create a booking or send an email.</p>
+        <button style={btnGhost} onClick={()=>setDetail(null)}>Close</button>
+      </Modal>}
+      {detail && detail.source!=="scheduled" && (
         <DetailModal
           entry={detail} onClose={() => setDetail(null)}
           visitors={visitorsOf(detail.id)} myEmail={myEmail}
@@ -1955,11 +1971,12 @@ function VisitGrid({ week, division, periods, entries, match, filtering, visitor
 /* Same reading as the Cover Board: clay means it still needs people,
    green means someone's coming. */
 function ClassChip({ e, dim, n, mine, onOpen }) {
-  const taken = n > 0 || mine;
-  const bg   = taken ? T.fullBg   : T.openBg;
-  const line = taken ? T.fullLine : T.openLine;
-  const ink  = taken ? T.fullInk  : T.openInk;
-  const pill = taken ? T.full     : T.open;
+  const posted=e.source!=="scheduled";
+  const taken=n>0||mine;
+  const bg=posted?"#d8efdf":"#edf8ed";
+  const line=posted?"#67ac7d":"#c6e2ca";
+  const ink=posted?"#15502b":"#426b4d";
+  const pill=posted?"#267444":"#78a987";
   const tags = e.strategies || [];
   const strands = e.standards || [];
 
@@ -1977,7 +1994,7 @@ function ClassChip({ e, dim, n, mine, onOpen }) {
         display: "inline-block", marginTop: 4, background: pill, color: "#fff",
         borderRadius: 999, fontSize: 9.5, padding: "1.5px 7px", fontWeight: 700
       }}>
-        {mine ? "you're going" : n > 0 ? `${n} visiting` : "no one yet"}
+        {!posted ? "Open too" : mine ? "you're going" : n>0 ? `${n} visiting` : "Especially open"}
       </span>
       {tags.length > 0 && (
         <span style={{ display: "block", marginTop: 4 }}>
@@ -2024,11 +2041,11 @@ function VisitList({ hits, visitorsOf, myEmail, onOpen }) {
         return (
           <div key={it.id} onClick={() => onOpen(it)} style={{
             background: "#fff", border: `1px solid ${T.line}`,
-            borderLeft: `4px solid ${colorFor(it.host_name)}`, borderRadius: 6,
+            borderLeft: `5px solid ${it.source==="scheduled"?"#a7d1b1":"#267444"}`, borderRadius: 6,
             padding: "14px 18px", display: "flex", gap: 18, cursor: "pointer"
           }}
             onMouseEnter={e => e.currentTarget.style.background = T.redBg}
-            onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
+            onMouseLeave={e => e.currentTarget.style.background = it.source==="scheduled"?"#edf8ed":"#d8efdf"}>
             <div style={{ flexShrink: 0, textAlign: "center", minWidth: 88 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: T.red, textTransform: "uppercase" }}>{it.shortDay}</div>
               <div style={{ fontSize: 12.5, color: T.ink, fontWeight: 600 }}>{fmtDate(it.date_str)}</div>
@@ -2044,6 +2061,7 @@ function VisitList({ hits, visitorsOf, myEmail, onOpen }) {
                 <span style={{ fontSize: 13.5, color: T.red }}>{it.subject}</span>
                 <span style={{ fontSize: 12.5, color: T.muted }}>{it.grade}</span>
                 {it.room && <span style={{ fontSize: 12.5, color: T.muted }}>· Room {it.room}</span>}
+                <span style={{fontSize:11,fontWeight:700,color:"#267444"}}>{it.source==="scheduled"?"Open too":"Especially open"}</span>
                 {mine ? (
                   <span style={{
                     fontSize: 11, color: "#fff", background: "#2d6b2d",
