@@ -1141,7 +1141,7 @@ function OpenFlow({ division, setDivision, entries, setEntries, visits, setVisit
         const { week } = locate(date);
         return (
           <div key={k} style={{
-            background: it.source==="scheduled"?"#edf8ed":"#d8efdf", border: `1px solid ${T.line}`,
+            background: "#fff", border: `1px solid ${T.line}`,
             borderLeft: `4px solid ${T.red}`, borderRadius: T.radius,
             padding: "20px 22px", marginBottom: 16
           }}>
