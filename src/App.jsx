@@ -1689,7 +1689,7 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
   const [focusF, setFocusF] = useState("");
   const [stdF, setStdF] = useState("");
   const [timeF,setTimeF]=useState("");
-  const [postedOnly,setPostedOnly]=useState(false);
+  const [teacherF,setTeacherF]=useState("");
   const [listView, setListView] = useState(false);
   const [detail, setDetail] = useState(null);
   // Invitation links bring the visitor straight to the matching class.
@@ -1712,10 +1712,10 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
   const PERIODS = periodsFor(division);
   const SUBJECTS = division === "Elementary" ? SUBJECTS_ES : SUBJECTS_SEC;
   const GRADES = division === "Elementary" ? GRADES_ES : GRADES_SEC;
-  const filtering = q.trim() || subjectF || gradeF || focusF || stdF || timeF || postedOnly;
+  const filtering = !!(q.trim() || teacherF || subjectF || gradeF || focusF || stdF || timeF);
 
-  useEffect(() => { if (filtering) setListView(true); }, [filtering]);
-  useEffect(() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); }, [division]);
+  // Keep the calendar visible while searching; list view remains optional.
+  useEffect(() => { setQ(""); setTeacherF(""); setSubjectF(""); setGradeF(""); setFocusF(""); setStdF(""); setTimeF(""); }, [division]);
 
   async function recordWalkin() {
     const entry = entries.find(e => e.id === recordEntry);
@@ -1745,6 +1745,7 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
       (e.strategies || []).some(x => x.toLowerCase().includes(s)) ||
       (e.standards || []).some(x => x.toLowerCase().includes(s));
     return textOk
+      && (!teacherF || e.host_name===teacherF)
       && (!subjectF || e.subject.toLowerCase().includes(subjectF.toLowerCase()))
       && (!timeF || e.period_key===timeF)
       && (!gradeF || e.grade === gradeF)
@@ -1755,7 +1756,12 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
   }
 
   const allClasses=discoverClasses(division,entries,facultyDirectory,timetables);
-  const inDivision=postedOnly?allClasses.filter(e=>e.source==="posted"):allClasses;
+  const inDivision=filtering?allClasses:allClasses.filter(e=>e.source==="posted");
+  const teacherOptions=[...new Set(allClasses.map(e=>e.host_name))].sort((a,b)=>a.localeCompare(b));
+  const now=new Date();
+  const todayISO=[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
+  const currentWeeks=WEEKS.filter(w=>w.dates[4]>=todayISO);
+  const pastWeeks=WEEKS.filter(w=>w.dates[4]<todayISO);
   const hits = [];
   WEEKS.forEach(w => w.dates.forEach((d, di) => PERIODS.forEach(p => {
     inDivision
@@ -1822,7 +1828,10 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
           Find a class to visit
         </h2>
         <p style={{ fontSize: 14, color: T.text2, margin: "0 0 22px", lineHeight: 1.55 }}>
-          Search the whole teaching timetable. Dark green is especially open: the teacher specifically invited visitors. Light green means open too; check with the teacher before dropping in.
+          The classes listed below in dark green have been opened directly by teachers to invite you in.
+          There are plenty of other classes, however. Select a teacher, subject, grade or time
+          to search for a class to visit; other scheduled classes appear in light green.
+          Remember, all classes are open unless you find a red card on the door.
         </p>
 
         <DivisionTabs division={division} onChange={setDivision} />
@@ -1835,6 +1844,11 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search teacher, subject, notes…"
               style={{ ...input, flex: "1 1 200px", minWidth: 150, fontSize: 13,
                 border: `1.5px solid ${q ? T.red : T.line}` }} />
+            <select aria-label="Choose a teacher" value={teacherF} onChange={e=>setTeacherF(e.target.value)}
+              style={{...sel(!!teacherF),flex:"0 1 195px"}}>
+              <option value="">Choose a teacher</option>
+              {teacherOptions.map(name=><option key={name} value={name}>{name}</option>)}
+            </select>
             <select value={timeF} onChange={e=>setTimeF(e.target.value)} style={{...sel(!!timeF),flex:"0 1 180px"}}><option value="">Any time</option>{PERIODS.map(p=><option value={p.key} key={p.key}>{p.label} · {p.time}</option>)}</select>
             <select value={subjectF} onChange={e => setSubjectF(e.target.value)} style={{ ...sel(!!subjectF), flex: "0 1 200px" }}>
               <option value="">All subjects</option>
@@ -1857,9 +1871,8 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
                 </optgroup>
               ))}
             </select>
-            <label style={{display:"flex",gap:6,alignItems:"center",fontSize:12,color:T.text2}}><input type="checkbox" checked={postedOnly} onChange={e=>setPostedOnly(e.target.checked)} style={{accentColor:"#267444"}}/>Especially open only</label>
             {filtering && (
-              <button onClick={() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); setStdF(""); setTimeF(""); setPostedOnly(false); }}
+              <button onClick={() => { setQ(""); setSubjectF(""); setGradeF(""); setFocusF(""); setStdF(""); setTimeF(""); setTeacherF(""); }}
                 style={{ ...btnGhost, borderColor: T.redMid, color: T.red, padding: "8px 14px" }}>Clear</button>
             )}
           </div>
@@ -1870,7 +1883,7 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
             <span style={{ fontSize: 12.5, color: filtering ? T.red : T.muted }}>
               {filtering
                 ? `${hits.length} ${hits.length === 1 ? "class" : "classes"} match`
-                : `${inDivision.length} scheduled lessons in ${division} · ${inDivision.filter(e=>e.source==="posted").length} especially open`}
+                : `${inDivision.length} classes opened directly by teachers in ${division}`}
             </span>
             <div style={{ display: "flex", border: `1px solid ${T.line}`, borderRadius: 5, overflow: "hidden" }}>
               {["Calendar", "List"].map((t, i) => {
@@ -1903,8 +1916,8 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
         <h2 style={{fontSize:21}}>{detail.subject}</h2>
         <p>{detail.host_name} · {fmtLong(detail.date_str)} · {periodLabel(detail.division,detail.period_key)}</p>
         <p style={{color:T.text2,fontSize:13}}>Grade {detail.grade||"not specified"}{detail.room?" · Room "+detail.room:""}</p>
-        <p style={{fontSize:13,color:"#426b4d",fontWeight:700}}>Open too · Scheduled lesson</p>
-        <p style={{fontSize:13,lineHeight:1.6}}>This teacher has not specifically posted this lesson for visitors. Please check with them before attending. This does not create a booking or send an email.</p>
+        <p style={{fontSize:13,color:"#426b4d",fontWeight:700}}>Scheduled lesson</p>
+        <p style={{fontSize:13,lineHeight:1.6}}>The teacher has not specifically invited visitors through this tool. All classrooms are open unless a red card is on the door. This view does not book a visit or send an email.</p>
         <button style={btnGhost} onClick={()=>setDetail(null)}>Close</button>
       </Modal>}
       {detail && detail.source!=="scheduled" && (
@@ -1994,7 +2007,7 @@ function ClassChip({ e, dim, n, mine, onOpen }) {
         display: "inline-block", marginTop: 4, background: pill, color: "#fff",
         borderRadius: 999, fontSize: 9.5, padding: "1.5px 7px", fontWeight: 700
       }}>
-        {!posted ? "Open too" : mine ? "you're going" : n>0 ? `${n} visiting` : "Especially open"}
+        {mine ? "you're going" : n>0 ? `${n} visiting` : ""}
       </span>
       {tags.length > 0 && (
         <span style={{ display: "block", marginTop: 4 }}>
@@ -2061,7 +2074,6 @@ function VisitList({ hits, visitorsOf, myEmail, onOpen }) {
                 <span style={{ fontSize: 13.5, color: T.red }}>{it.subject}</span>
                 <span style={{ fontSize: 12.5, color: T.muted }}>{it.grade}</span>
                 {it.room && <span style={{ fontSize: 12.5, color: T.muted }}>· Room {it.room}</span>}
-                <span style={{fontSize:11,fontWeight:700,color:"#267444"}}>{it.source==="scheduled"?"Open too":"Especially open"}</span>
                 {mine ? (
                   <span style={{
                     fontSize: 11, color: "#fff", background: "#2d6b2d",
