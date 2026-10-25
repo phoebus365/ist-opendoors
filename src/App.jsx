@@ -1975,7 +1975,7 @@ function VisitGrid({ week, division, periods, entries, match, filtering, visitor
               <tr key={p.key}>
                 <PeriodCell p={p} last={pi === periods.length - 1} />
                 {week.dates.map((d, i) => {
-                  const cell = entries.filter(e => e.date_str === d && e.period_key === p.key);
+                  const cell = entries.filter(e => e.date_str === d && e.period_key === p.key && (!filtering || match(e)));
                   return (
                     <td key={d} style={{
                       verticalAlign: "top", padding: "8px 9px",
