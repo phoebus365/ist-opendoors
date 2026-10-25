@@ -1902,13 +1902,36 @@ function VisitFlow({ division, setDivision, entries, timetables, facultyDirector
         </div>
 
         {listView ? (
-          <VisitList hits={hits} visitorsOf={visitorsOf} myEmail={myEmail} onOpen={setDetail} />
-        ) : (
-          WEEKS.map((w, i) => (
-            <VisitGrid key={i} week={w} division={division} periods={PERIODS}
-              entries={inDivision} match={match} filtering={!!filtering}
+          <>
+            <VisitList hits={hits.filter(e=>e.date_str>=todayISO)}
               visitorsOf={visitorsOf} myEmail={myEmail} onOpen={setDetail} />
-          ))
+            {hits.some(e=>e.date_str<todayISO) && (
+              <details style={{opacity:.65,marginBottom:36}}>
+                <summary style={{cursor:"pointer",padding:12,color:T.muted}}>
+                  Previous visits and classes ({hits.filter(e=>e.date_str<todayISO).length})
+                </summary>
+                <VisitList hits={hits.filter(e=>e.date_str<todayISO)}
+                  visitorsOf={visitorsOf} myEmail={myEmail} onOpen={setDetail}/>
+              </details>
+            )}
+          </>
+        ) : (
+          <>
+            {currentWeeks.map(w=><VisitGrid key={w.dates[0]} week={w}
+              division={division} periods={PERIODS} entries={inDivision}
+              match={match} filtering={!!filtering} visitorsOf={visitorsOf}
+              myEmail={myEmail} onOpen={setDetail}/>)}
+            {pastWeeks.length>0 && <details style={{opacity:.65,marginBottom:36}}>
+              <summary style={{cursor:"pointer",padding:"15px 0",
+                borderTop:`1px solid ${T.line}`,color:T.muted,fontSize:13,fontWeight:700}}>
+                Previous weeks ({pastWeeks.length}) · Show past calendars
+              </summary>
+              {pastWeeks.map(w=><VisitGrid key={w.dates[0]} week={w}
+                division={division} periods={PERIODS} entries={inDivision}
+                match={match} filtering={!!filtering} visitorsOf={visitorsOf}
+                myEmail={myEmail} onOpen={setDetail}/>)}
+            </details>}
+          </>
         )}
       </main>
 
